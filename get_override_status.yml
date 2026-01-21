@@ -29,4 +29,4 @@
           - "HA Type: {{ ansible_facts['net_ha_localmode'] }}"
           - "HA Status: {{ ansible_facts['net_ha_localstate'] }}"
           - "Multi-VSYS: {{ ansible_facts['net_multivsys'] }}"
-          - "{{ ansible_facts['net_session_usage'] }} out of {{ ansible_facts['net_session_max'] }} sessions in use"
+          #- "{{ ansible_facts['net_session_usage'] }} out of {{ ansible_facts['net_session_max'] }} sessions in use"
