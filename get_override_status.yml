@@ -9,7 +9,7 @@
       username: "{{ username }}"
       password: "{{ password }}"
 
-collections:
+  collections:
     - paloaltonetworks.panos
 
   tasks:
