@@ -1,4 +1,12 @@
-Stack,MissingIPs,Status
-{% for item in permitted_ip_compliance -%}
-{{ item.stack }},{% if item.missing_in_stack | default([]) | length > 0 %}"{{ item.missing_in_stack | join('; ') }}",{% else %},{% endif %}{% if item.missing_in_stack | default([]) | length > 0 %}NON_COMPLIANT{% else %}COMPLIANT{% endif %}
+{# Build lines explicitly and join with CRLF for Excel #}
+{% set ns = namespace(lines=[]) %}
+{% set _ = ns.lines.append('Stack,MissingIPs,Status') %}
+
+{% for item in permitted_ip_compliance %}
+{% set missing = item.missing_in_stack | default([]) %}
+{% set col_b = ('"' ~ (missing | join('; ')) ~ '"') if (missing | length > 0) else '' %}
+{% set col_c = 'NON_COMPLIANT' if (missing | length > 0) else 'COMPLIANT' %}
+{% set _ = ns.lines.append(item.stack ~ ',' ~ col_b ~ ',' ~ col_c) %}
 {% endfor %}
+
+{{ ns.lines | join('\r\n') }}{{ '\r\n' }}
