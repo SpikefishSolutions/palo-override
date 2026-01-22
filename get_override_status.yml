@@ -85,7 +85,7 @@
     - name: Pull management permitted IPs from template + template stack
       vars:
         template_xpath: >-
-          /config/devices/entry[@name='localhost.localdomain']/template/entry[@name='{{ stack_to_first_template[item] }}']
+          /config/devices/entry[@name='localhost.localdomain']/template/entry[@name='{{ stack_to_global[item] }}']
           /config/devices/entry[@name='localhost.localdomain']/deviceconfig/system/permitted-ip
         stack_xpath: >-
           /config/devices/entry[@name='localhost.localdomain']/template-stack/entry[@name='{{ item }}']
@@ -100,7 +100,7 @@
           loop: "{{ template_stacks }}"
           loop_control:
             loop_var: item
-            label: "stack={{ item }} template={{ stack_to_first_template[item] }}"
+            label: "stack={{ item }} template={{ stack_to_global[item] }}"
 
         - name: Get permitted IPs from TEMPLATE STACK config
           paloaltonetworks.panos.panos_type_cmd:
@@ -121,7 +121,7 @@
                 mgmt_permitted_ip_report | default([])
                 + [ {
                   'stack': item,
-                  'template': stack_to_first_template[item],
+                  'template': stack_to_global[item],
                   'template_permitted_ips': (
                     (permitted_from_template_raw.results
                       | selectattr('item', 'equalto', item)
