@@ -8,6 +8,10 @@
       ip_address: "{{ ip_address }}"
       username: "{{ username }}"
       password: "{{ password }}"
+    400_template_stacks:
+      - Firewall_Incorrect_Stack
+      - Firewall2_Incorrect_Stack
+      - Firewall_Correct_Stack
 
   collections:
     - paloaltonetworks.panos
@@ -34,10 +38,11 @@
     - name: Get Template Stacks Info
       paloaltonetworks.panos.panos_template_stack:
         provider: "{{ device }}"
-        name: 'Firewall_Stack'
+        name: "{{ item }}"
         state: 'gathered'
-      register: stack_result
+      register: stack_result_raw
+      loop: "{{ 400_template_stacks }}"
 
     - name: Output Results
       ansible.builtin.debug:
-        var: stack_result
+        var: stack_result_raw
