@@ -97,7 +97,7 @@
             provider: "{{ device }}"
             cmd: "type=config&action=get&xpath={{ template_xpath | regex_replace('\\s+', '') }}"
           register: permitted_from_template_raw
-          loop: "{{ stack_to_global }}"
+          loop: "{{ template_stacks }}"
           loop_control:
             loop_var: item
             label: "stack={{ item }} template={{ stack_to_first_template[item] }}"
@@ -107,7 +107,7 @@
             provider: "{{ device }}"
             cmd: "type=config&action=get&xpath={{ stack_xpath | regex_replace('\\s+', '') }}"
           register: permitted_from_stack_raw
-          loop: "{{ stack_to_global }}"
+          loop: "{{ template_stacks }}"
           loop_control:
             loop_var: item
             label: "stack={{ item }}"
@@ -144,7 +144,7 @@
                   )
                 } ]
               }}
-          loop: "{{ stack_to_global }}"
+          loop: "{{ template_stacks }}"
 
     - name: Output Results
       ansible.builtin.debug:
