@@ -43,9 +43,16 @@
       register: stack_result_raw
       loop: "{{ template_stacks }}"
     
-    - name: Normalize template stacks list
+    - name: Extract gathered template stack data into a clean list
       ansible.builtin.set_fact:
-        stack_result: "{{ stack_result_raw.results.gathered | default([]) }}"
+        stack_result: >-
+          {{
+            stack_result_raw.results
+            | map(attribute='gathered')
+            | select('defined')
+            | flatten
+            | list
+          }}
 
     - name: Output Results
       ansible.builtin.debug:
