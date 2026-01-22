@@ -180,3 +180,8 @@
           =====BEGIN_MISSING_MGMT_PERMITTED_IPS_CSV_BASE64=====
           {{ csv_slurp.content }}
           =====END_MISSING_MGMT_PERMITTED_IPS_CSV_BASE64=====
+
+# Need to build logic to grab the 400 firewalls
+# Need to grab the mgmt ips and stack names from the firewalls
+# Might want to consider checking to see if the mgmt ip in the stack is correct
+# Might want to check to see if there are other ips in the override that aren't the mgmt ips
