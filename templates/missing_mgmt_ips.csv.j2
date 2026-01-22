@@ -1,0 +1,4 @@
+Stack,MissingIPs
+{% for item in permitted_ip_compliance %}
+{{ item.stack }},{% if (item.missing_in_stack | default([]) | length) > 0 %}"{{ (item.missing_in_stack | join('; ')) }}"{% endif %}
+{% endfor %}

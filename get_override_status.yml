@@ -163,20 +163,20 @@
           }}
       loop: "{{ mgmt_permitted_ip_report }}"
 
-    - name: Write missing permitted IPs XML report
+    - name: Write missing permitted IPs CSV report (AAP artifact)
       ansible.builtin.template:
-        src: missing_mgmt_ips.xml.j2
-        dest: "/tmp/missing_mgmt_permitted_ips.xml"
+        src: missing_mgmt_ips.csv.j2
+        dest: /runner/artifacts/missing_mgmt_permitted_ips.csv
         mode: '0644'
 
-    - name: Slurp the XML file (base64)
+    - name: Slurp CSV (base64)
       ansible.builtin.slurp:
-        src: /tmp/missing_mgmt_permitted_ips.xml
-      register: xml_slurp
+        src: /runner/artifacts/missing_mgmt_permitted_ips.csv
+      register: csv_slurp
 
-    - name: Print base64 XML to job output (copy/paste safe)
+    - name: Print base64 CSV to job output (copy/paste safe)
       ansible.builtin.debug:
         msg: |
-          =====BEGIN_MISSING_MGMT_PERMITTED_IPS_XML_BASE64=====
-          {{ xml_slurp.content }}
-          =====END_MISSING_MGMT_PERMITTED_IPS_XML_BASE64=====
+          =====BEGIN_MISSING_MGMT_PERMITTED_IPS_CSV_BASE64=====
+          {{ csv_slurp.content }}
+          =====END_MISSING_MGMT_PERMITTED_IPS_CSV_BASE64=====
