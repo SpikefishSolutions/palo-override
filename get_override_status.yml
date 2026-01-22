@@ -36,3 +36,8 @@
         provider: "{{ device }}"
         name: 'Firewall_Stack'
         state: 'gathered'
+        register: stack_result
+
+    - name: Output Results
+      ansible.builtin.debug:
+        var: stack_result
