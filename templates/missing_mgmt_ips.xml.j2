@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<report>
+{% for item in permitted_ip_compliance %}
+  <row>
+    <columnA>{{ item.stack }}</columnA>
+    <columnB>
+{% if item.missing_in_stack | length > 0 %}
+{{ item.missing_in_stack | join(', ') }}
+{% endif %}
+    </columnB>
+    <columnC>
+{% if item.missing_in_stack | length == 0 %}
+COMPLIANT
+{% else %}
+NON_COMPLIANT
+{% endif %}
+    </columnC>
+  </row>
+{% endfor %}
+</report>

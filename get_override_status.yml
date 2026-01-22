@@ -148,6 +148,27 @@
               }}
           loop: "{{ template_stacks }}"
 
+    - name: Compute missing permitted IPs (template not present in stack)
+      ansible.builtin.set_fact:
+        permitted_ip_compliance: >-
+          {{
+            (permitted_ip_compliance | default([]))
+            + [ item | combine({
+                'missing_in_stack': (
+                  (item.template_permitted_ips | default([]))
+                  | difference(item.stack_permitted_ips | default([]))
+                )
+              })
+              ]
+          }}
+      loop: "{{ mgmt_permitted_ip_report }}"
+
     - name: Output Results
       ansible.builtin.debug:
-        var: mgmt_permitted_ip_report
+        var: permitted_ip_compliance
+
+    - name: Write missing permitted IPs XML report
+      ansible.builtin.template:
+        src: missing_mgmt_ips.xml.j2
+        dest: "/tmp/missing_mgmt_permitted_ips.xml"
+        mode: '0644'
