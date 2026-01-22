@@ -1,4 +1,4 @@
 Stack,MissingIPs,Status
-{% for item in permitted_ip_compliance %}
-{{ item.stack }},{% if item.missing_in_stack | length > 0 %}"{{ item.missing_in_stack | join('; ') }}",{% else %},{% endif %}{% if item.missing_in_stack | length > 0 %}NON_COMPLIANT{% else %}COMPLIANT{% endif %}
+{% for item in permitted_ip_compliance -%}
+{{ item.stack }},{% if item.missing_in_stack | default([]) | length > 0 %}"{{ item.missing_in_stack | join('; ') }}",{% else %},{% endif %}{% if item.missing_in_stack | default([]) | length > 0 %}NON_COMPLIANT{% else %}COMPLIANT{% endif %}
 {% endfor %}
