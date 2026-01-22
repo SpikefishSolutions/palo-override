@@ -42,7 +42,11 @@
         state: 'gathered'
       register: stack_result_raw
       loop: "{{ template_stacks }}"
+    
+    - name: Normalize template stacks list
+      ansible.builtin.set_fact:
+        stack_result: "{{ stack_result_raw.results.gathered | default([]) }}"
 
     - name: Output Results
       ansible.builtin.debug:
-        var: stack_result_raw
+        var: stack_result
