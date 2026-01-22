@@ -82,6 +82,70 @@
         - item.templates is defined
         - item.templates | length > 0
 
+    - name: Pull management permitted IPs from template + template stack
+      vars:
+        template_xpath: >-
+          /config/devices/entry[@name='localhost.localdomain']/template/entry[@name='{{ stack_to_first_template[item] }}']
+          /config/devices/entry[@name='localhost.localdomain']/deviceconfig/system/permitted-ip
+        stack_xpath: >-
+          /config/devices/entry[@name='localhost.localdomain']/template-stack/entry[@name='{{ item }}']
+          /config/devices/entry[@name='localhost.localdomain']/deviceconfig/system/permitted-ip
+      block:
+
+        - name: Get permitted IPs from GLOBAL TEMPLATE in the stack
+          paloaltonetworks.panos.panos_type_cmd:
+            provider: "{{ device }}"
+            cmd: "type=config&action=get&xpath={{ template_xpath | regex_replace('\\s+', '') }}"
+          register: permitted_from_template_raw
+          loop: "{{ stack_to_global }}"
+          loop_control:
+            loop_var: item
+            label: "stack={{ item }} template={{ stack_to_first_template[item] }}"
+
+        - name: Get permitted IPs from TEMPLATE STACK config
+          paloaltonetworks.panos.panos_type_cmd:
+            provider: "{{ device }}"
+            cmd: "type=config&action=get&xpath={{ stack_xpath | regex_replace('\\s+', '') }}"
+          register: permitted_from_stack_raw
+          loop: "{{ stack_to_global }}"
+          loop_control:
+            loop_var: item
+            label: "stack={{ item }}"
+
+        # Parse XML -> list of entry names (IP/subnet). This is the key extraction.
+        # We look for: <entry name="1.2.3.4/32"> or <entry name="10.0.0.0/8">
+        - name: Build a per-stack report (stack, template, template_permitted_ips, stack_permitted_ips)
+          ansible.builtin.set_fact:
+            mgmt_permitted_ip_report: >-
+              {{
+                mgmt_permitted_ip_report | default([])
+                + [ {
+                  'stack': item,
+                  'template': stack_to_first_template[item],
+                  'template_permitted_ips': (
+                    (permitted_from_template_raw.results
+                      | selectattr('item', 'equalto', item)
+                      | map(attribute='stdout_xml')
+                      | first
+                      | default('')
+                    )
+                    | regex_findall('entry name=\"([^\"]+)\"')
+                    | list
+                  ),
+                  'stack_permitted_ips': (
+                    (permitted_from_stack_raw.results
+                      | selectattr('item', 'equalto', item)
+                      | map(attribute='stdout_xml')
+                      | first
+                      | default('')
+                    )
+                    | regex_findall('entry name=\"([^\"]+)\"')
+                    | list
+                  )
+                } ]
+              }}
+          loop: "{{ stack_to_global }}"
+
     - name: Output Results
       ansible.builtin.debug:
-        var: stack_to_template
+        var: mgmt_permitted_ip_report
