@@ -162,13 +162,21 @@
               ]
           }}
       loop: "{{ mgmt_permitted_ip_report }}"
-
-    - name: Output Results
-      ansible.builtin.debug:
-        var: permitted_ip_compliance
-
+      
     - name: Write missing permitted IPs XML report
       ansible.builtin.template:
         src: missing_mgmt_ips.xml.j2
         dest: "/tmp/missing_mgmt_permitted_ips.xml"
         mode: '0644'
+
+    - name: Slurp the XML file (base64)
+      ansible.builtin.slurp:
+        src: /runner/artifacts/missing_mgmt_permitted_ips.xml
+      register: xml_slurp
+
+    - name: Print base64 XML to job output (copy/paste safe)
+      ansible.builtin.debug:
+        msg: |
+          =====BEGIN_MISSING_MGMT_PERMITTED_IPS_XML_BASE64=====
+          {{ xml_slurp.content }}
+          =====END_MISSING_MGMT_PERMITTED_IPS_XML_BASE64=====
