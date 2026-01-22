@@ -162,7 +162,7 @@
               ]
           }}
       loop: "{{ mgmt_permitted_ip_report }}"
-      
+
     - name: Write missing permitted IPs XML report
       ansible.builtin.template:
         src: missing_mgmt_ips.xml.j2
@@ -171,7 +171,7 @@
 
     - name: Slurp the XML file (base64)
       ansible.builtin.slurp:
-        src: /runner/artifacts/missing_mgmt_permitted_ips.xml
+        src: /tmp/missing_mgmt_permitted_ips.xml
       register: xml_slurp
 
     - name: Print base64 XML to job output (copy/paste safe)
