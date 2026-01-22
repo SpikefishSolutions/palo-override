@@ -8,7 +8,7 @@
       ip_address: "{{ ip_address }}"
       username: "{{ username }}"
       password: "{{ password }}"
-    400_template_stacks:
+    template_stacks:
       - Firewall_Incorrect_Stack
       - Firewall2_Incorrect_Stack
       - Firewall_Correct_Stack
@@ -41,7 +41,7 @@
         name: "{{ item }}"
         state: 'gathered'
       register: stack_result_raw
-      loop: "{{ 400_template_stacks }}"
+      loop: "{{ template_stacks }}"
 
     - name: Output Results
       ansible.builtin.debug:
