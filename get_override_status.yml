@@ -186,3 +186,4 @@
 # Might want to consider checking to see if the mgmt ip in the stack is correct
 # Might want to check to see if there are other ips in the override that aren't the mgmt ips
 # Update data output format to match json format of other projects
+# List generation and data validation/file generation will be seperate playbooks
