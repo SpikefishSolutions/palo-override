@@ -1,0 +1,36 @@
+---
+- name: Get Templates Override Status
+  hosts: panorama
+  connection: local
+
+  vars:
+    device:
+      ip_address: "{{ ip_address }}"
+      username: "{{ username }}"
+      password: "{{ password }}"
+    # `template_stacks` will be derived from discovered PA-4 devices later in the playbook
+
+  collections:
+    - paloaltonetworks.panos
+
+  tasks:
+      # TODO: Update to generate JSON report
+    # TODO: Move the report generation to a separate playbook
+
+    - name: Write override report JSON (AAP artifact)
+      ansible.builtin.template:
+        src: override_report.json.j2
+        dest: /runner/artifacts/override_report.json
+        mode: '0644'
+
+    - name: Slurp JSON (base64)
+      ansible.builtin.slurp:
+        src: /runner/artifacts/override_report.json
+      register: json_slurp
+
+    - name: Print base64 JSON to job output (copy/paste safe)
+      ansible.builtin.debug:
+        msg: |
+          =====BEGIN_OVERRIDE_REPORT_JSON_BASE64=====
+          {{ json_slurp.content }}
+          =====END_OVERRIDE_REPORT_JSON_BASE64=====

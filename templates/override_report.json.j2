@@ -1,0 +1,5 @@
+
+{
+	"generated_at": "{{ ansible_date_time.iso8601 | default('') }}",
+	"stacks": {{ template_stack_issues_by_stack | default({}) | to_nice_json }}
+}

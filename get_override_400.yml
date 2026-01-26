@@ -1,0 +1,235 @@
+---
+- name: Get Templates Override Status
+  hosts: panorama
+  connection: local
+
+  vars:
+    device:
+      ip_address: "{{ ip_address }}"
+      username: "{{ username }}"
+      password: "{{ password }}"
+    # `template_stacks` will be derived from discovered PA-4 devices later in the playbook
+
+  collections:
+    - paloaltonetworks.panos
+
+  tasks:
+    - name: Gather facts for device
+      paloaltonetworks.panos.panos_facts:
+        provider: "{{ device }}"
+
+    - name: Query Panorama for managed devices
+      paloaltonetworks.panos.panos_op:
+        provider: "{{ device }}"
+        cmd: "show devices all"
+      register: panorama_devices_raw
+
+    - name: Extract PA-4 devices (serial, mgmt_ip, model, template-stack) from Panorama output
+      ansible.builtin.set_fact:
+        fw_400_devices: >-
+          {{
+            fw_400_devices | default([])
+            + (
+              panorama_devices_raw.stdout
+              | regex_findall('(?s)serial:\s*(\S+).*?ip-address:\s*(\S+).*?model:\s*(PA-4[^\s,]*)[\s,].*?template-stack:\s*(\S+)')
+              | map('list')
+              | map('zip', ['serial','mgmt_ip','model','stack'])
+              | map('map', 'last')
+              | map('items')
+              | map('community.general.items2dict')
+              | list
+            )
+          }}
+
+    - name: Derive template stacks from discovered 400-series devices
+      ansible.builtin.set_fact:
+        template_stacks: "{{ fw_400_devices | map(attribute='stack') | unique | list }}"
+
+    - name: Build mapping of template_stack -> mgmt IPs for 400-series firewalls
+      ansible.builtin.set_fact:
+        fw_400_by_stack: >-
+          {{
+            (fw_400_by_stack | default({}))
+            | combine({
+                item: (
+                  (fw_400_devices | default([]))
+                  | selectattr('stack','equalto', item)
+                  | map(attribute='mgmt_ip')
+                  | list
+                )
+              })
+          }}
+      loop: "{{ fw_400_devices | map(attribute='stack') | unique | list }}"
+
+    - name: Get Template Stacks Info
+      paloaltonetworks.panos.panos_template_stack:
+        provider: "{{ device }}"
+        name: "{{ item }}"
+        state: 'gathered'
+      register: template_stack_result_raw
+      loop: "{{ fw_400_by_stack.keys() | list }}"
+    
+    - name: Extract gathered template stack data into a clean list
+      ansible.builtin.set_fact:
+        template_stack_result: >-
+          {{
+            template_stack_result_raw.results
+            | map(attribute='gathered')
+            | select('defined')
+            | flatten
+            | list
+          }}
+    
+    - name: Map template stack name to first template
+      ansible.builtin.set_fact:
+        template_stack_to_template: >-
+          {{
+            template_stack_to_template | default({})
+            | combine({
+                item.name: (item.templates | first)
+              })
+          }}
+      loop: "{{ template_stack_result }}"
+      when:
+        - item.templates is defined
+        - item.templates | length > 0
+
+    - name: Map template stack name to global template
+      ansible.builtin.set_fact:
+        template_stack_to_global: >-
+          {{
+            template_stack_to_global | default({})
+            | combine({
+                item.name: (item.templates | last)
+              })
+          }}
+      loop: "{{ template_stack_result }}"
+      when:
+        - item.templates is defined
+        - item.templates | length > 0
+
+    - name: Pull management permitted IPs from template + template stack
+      vars:
+        template_xpath: >-
+          /config/devices/entry[@name='localhost.localdomain']/template/entry[@name='{{ template_stack_to_global[item] }}']
+          /config/devices/entry[@name='localhost.localdomain']/deviceconfig/system/permitted-ip
+        stack_xpath: >-
+          /config/devices/entry[@name='localhost.localdomain']/template-stack/entry[@name='{{ item }}']
+          /config/devices/entry[@name='localhost.localdomain']/deviceconfig/system/permitted-ip
+      block:
+
+        - name: Get permitted IPs from GLOBAL TEMPLATE in the stack
+          paloaltonetworks.panos.panos_type_cmd:
+            provider: "{{ device }}"
+            cmd: "get"
+            xpath: "{{ template_xpath | regex_replace('\\s+', '') }}"
+          register: template_stack_permitted_from_template_raw
+          loop: "{{ fw_400_by_stack.keys() | list }}"
+          loop_control:
+            loop_var: item
+            label: "stack={{ item }} template={{ template_stack_to_global[item] }}"
+
+        - name: Get permitted IPs from TEMPLATE STACK config
+          paloaltonetworks.panos.panos_type_cmd:
+            provider: "{{ device }}"
+            cmd: "get"
+            xpath: "{{ stack_xpath | regex_replace('\\s+', '') }}"
+          register: template_stack_permitted_from_stack_raw
+          loop: "{{ fw_400_by_stack.keys() | list }}"
+          loop_control:
+            loop_var: item
+            label: "stack={{ item }}"
+
+        # Parse XML -> list of entry names (IP/subnet). This is the key extraction.
+        # We look for: <entry name="1.2.3.4/32"> or <entry name="10.0.0.0/8">
+        - name: Build a per-stack report (stack, template, template_permitted_ips, stack_permitted_ips)
+          ansible.builtin.set_fact:
+            template_stack_mgmt_permitted_ips: >-
+              {{
+                template_stack_mgmt_permitted_ips | default([])
+                + [ {
+                  'stack': item,
+                  'template': template_stack_to_global[item],
+                  'template_permitted_ips': (
+                    (template_stack_permitted_from_template_raw.results
+                      | selectattr('item', 'equalto', item)
+                      | map(attribute='stdout_xml')
+                      | first
+                      | default('')
+                    )
+                    | regex_findall('entry name="([^\"]+)"')
+                    | list
+                  ),
+                  'stack_permitted_ips': (
+                    (template_stack_permitted_from_stack_raw.results
+                      | selectattr('item', 'equalto', item)
+                      | map(attribute='stdout_xml')
+                      | first
+                      | default('')
+                    )
+                    | regex_findall('entry name="([^\"]+)"')
+                    | list
+                  )
+                } ]
+              }}
+          loop: "{{ fw_400_by_stack.keys() | list }}"
+
+    - name: Compute missing permitted IPs (template not present in stack)
+      ansible.builtin.set_fact:
+        template_stack_permitted_ip_compliance: >-
+          {{
+            (template_stack_permitted_ip_compliance | default([]))
+            + [ item | combine({
+                'missing_in_stack': (
+                  (item.template_permitted_ips | default([]))
+                  | difference(item.stack_permitted_ips | default([]))
+                )
+              })
+              ]
+          }}
+      loop: "{{ template_stack_mgmt_permitted_ips }}"
+
+    # TODO: Check to see if the mgmt ip that is overriden at the stack level is the correct management IPs from the firewalls in the stack. Write this to a variable so it can be tracked
+
+    # TODO: Check to see if there are other IPs in the stack override that aren't the mgmt IPs of the firewalls in the stack. Write this to a variable so it can be tracked
+
+    - name: Validate stack overrides against actual firewall mgmt IPs
+      ansible.builtin.set_fact:
+        template_stack_override_validation: >-
+          {{
+            (template_stack_override_validation | default([]))
+            + [ {
+                'stack': item.stack,
+                'expected_mgmt_ips': (fw_400_by_stack[item.stack] | default([])),
+                'overridden_ips': (item.stack_permitted_ips | default([])),
+                'missing_in_override': (
+                  (fw_400_by_stack[item.stack] | default([]))
+                  | difference(item.stack_permitted_ips | default([]))
+                ),
+                'extra_in_override': (
+                  (item.stack_permitted_ips | default([]))
+                  | difference(fw_400_by_stack[item.stack] | default([]))
+                )
+              } ]
+          }}
+      loop: "{{ template_stack_mgmt_permitted_ips }}"
+
+    - name: Build dict of stack -> issue details for output
+      ansible.builtin.set_fact:
+        template_stack_issues_by_stack: >-
+          {{
+            (template_stack_issues_by_stack | default({}))
+            | combine({
+                item.stack: {
+                  'expected_mgmt_ips': (item.expected_mgmt_ips | default([])),
+                  'overridden_ips': (item.overridden_ips | default([])),
+                  'missing_in_override': (item.missing_in_override | default([])),
+                  'extra_in_override': (item.extra_in_override | default([]))
+                }
+              })
+          }}
+      loop: "{{ template_stack_override_validation }}"
+
+    - name: Debug stack issues dict
+      ansible.builtin.debug:
+        var: template_stack_issues_by_stack
