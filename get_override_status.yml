@@ -40,14 +40,14 @@
         provider: "{{ device }}"
         name: "{{ item }}"
         state: 'gathered'
-      register: stack_result_raw
+      register: template_stack_result_raw
       loop: "{{ template_stacks }}"
     
     - name: Extract gathered template stack data into a clean list
       ansible.builtin.set_fact:
-        stack_result: >-
+        template_stack_result: >-
           {{
-            stack_result_raw.results
+            template_stack_result_raw.results
             | map(attribute='gathered')
             | select('defined')
             | flatten
@@ -56,28 +56,28 @@
     
     - name: Map template stack name to first template
       ansible.builtin.set_fact:
-        stack_to_template: >-
+        template_stack_to_template: >-
           {{
-            stack_to_template | default({})
+            template_stack_to_template | default({})
             | combine({
                 item.name: (item.templates | first)
               })
           }}
-      loop: "{{ stack_result }}"
+      loop: "{{ template_stack_result }}"
       when:
         - item.templates is defined
         - item.templates | length > 0
 
     - name: Map template stack name to global template
       ansible.builtin.set_fact:
-        stack_to_global: >-
+        template_stack_to_global: >-
           {{
-            stack_to_global | default({})
+            template_stack_to_global | default({})
             | combine({
                 item.name: (item.templates | last)
               })
           }}
-      loop: "{{ stack_result }}"
+      loop: "{{ template_stack_result }}"
       when:
         - item.templates is defined
         - item.templates | length > 0
@@ -85,7 +85,7 @@
     - name: Pull management permitted IPs from template + template stack
       vars:
         template_xpath: >-
-          /config/devices/entry[@name='localhost.localdomain']/template/entry[@name='{{ stack_to_global[item] }}']
+          /config/devices/entry[@name='localhost.localdomain']/template/entry[@name='{{ template_stack_to_global[item] }}']
           /config/devices/entry[@name='localhost.localdomain']/deviceconfig/system/permitted-ip
         stack_xpath: >-
           /config/devices/entry[@name='localhost.localdomain']/template-stack/entry[@name='{{ item }}']
@@ -97,18 +97,18 @@
             provider: "{{ device }}"
             cmd: "get"
             xpath: "{{ template_xpath | regex_replace('\\s+', '') }}"
-          register: permitted_from_template_raw
+          register: template_stack_permitted_from_template_raw
           loop: "{{ template_stacks }}"
           loop_control:
             loop_var: item
-            label: "stack={{ item }} template={{ stack_to_global[item] }}"
+            label: "stack={{ item }} template={{ template_stack_to_global[item] }}"
 
         - name: Get permitted IPs from TEMPLATE STACK config
           paloaltonetworks.panos.panos_type_cmd:
             provider: "{{ device }}"
             cmd: "get"
             xpath: "{{ stack_xpath | regex_replace('\\s+', '') }}"
-          register: permitted_from_stack_raw
+          register: template_stack_permitted_from_stack_raw
           loop: "{{ template_stacks }}"
           loop_control:
             loop_var: item
@@ -118,30 +118,30 @@
         # We look for: <entry name="1.2.3.4/32"> or <entry name="10.0.0.0/8">
         - name: Build a per-stack report (stack, template, template_permitted_ips, stack_permitted_ips)
           ansible.builtin.set_fact:
-            mgmt_permitted_ip_report: >-
+            template_stack_mgmt_permitted_ips: >-
               {{
-                mgmt_permitted_ip_report | default([])
+                template_stack_mgmt_permitted_ips | default([])
                 + [ {
                   'stack': item,
-                  'template': stack_to_global[item],
+                  'template': template_stack_to_global[item],
                   'template_permitted_ips': (
-                    (permitted_from_template_raw.results
+                    (template_stack_permitted_from_template_raw.results
                       | selectattr('item', 'equalto', item)
                       | map(attribute='stdout_xml')
                       | first
                       | default('')
                     )
-                    | regex_findall('entry name=\"([^\"]+)\"')
+                    | regex_findall('entry name="([^\"]+)"')
                     | list
                   ),
                   'stack_permitted_ips': (
-                    (permitted_from_stack_raw.results
+                    (template_stack_permitted_from_stack_raw.results
                       | selectattr('item', 'equalto', item)
                       | map(attribute='stdout_xml')
                       | first
                       | default('')
                     )
-                    | regex_findall('entry name=\"([^\"]+)\"')
+                    | regex_findall('entry name="([^\"]+)"')
                     | list
                   )
                 } ]
@@ -150,9 +150,9 @@
 
     - name: Compute missing permitted IPs (template not present in stack)
       ansible.builtin.set_fact:
-        permitted_ip_compliance: >-
+        template_stack_permitted_ip_compliance: >-
           {{
-            (permitted_ip_compliance | default([]))
+            (template_stack_permitted_ip_compliance | default([]))
             + [ item | combine({
                 'missing_in_stack': (
                   (item.template_permitted_ips | default([]))
@@ -161,7 +161,7 @@
               })
               ]
           }}
-      loop: "{{ mgmt_permitted_ip_report }}"
+      loop: "{{ template_stack_mgmt_permitted_ips }}"
 
     - name: Write missing permitted IPs CSV report (AAP artifact)
       ansible.builtin.template:

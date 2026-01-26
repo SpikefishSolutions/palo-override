@@ -1,6 +1,6 @@
 {%- set ns = namespace(lines=[]) -%}
 {%- set _ = ns.lines.append('Stack,MissingIPs,Status') -%}
-{%- for item in permitted_ip_compliance -%}
+{%- for item in template_stack_permitted_ip_compliance -%}
 {%- set missing = item.missing_in_stack | default([]) -%}
 {%- set col_b = ('"' ~ (missing | join('; ')) ~ '"') if (missing | length > 0) else '' -%}
 {%- set col_c = 'NON_COMPLIANT' if (missing | length > 0) else 'COMPLIANT' -%}
