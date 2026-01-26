@@ -8,7 +8,6 @@
       ip_address: "{{ ip_address }}"
       username: "{{ username }}"
       password: "{{ password }}"
-    # `template_stacks` will be derived from discovered PA-4 devices later in the playbook
 
   collections:
     - paloaltonetworks.panos
