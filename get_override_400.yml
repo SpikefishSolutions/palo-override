@@ -189,10 +189,6 @@
           }}
       loop: "{{ template_stack_mgmt_permitted_ips }}"
 
-    # TODO: Check to see if the mgmt ip that is overriden at the stack level is the correct management IPs from the firewalls in the stack. Write this to a variable so it can be tracked
-
-    # TODO: Check to see if there are other IPs in the stack override that aren't the mgmt IPs of the firewalls in the stack. Write this to a variable so it can be tracked
-
     - name: Validate stack overrides against actual firewall mgmt IPs
       ansible.builtin.set_fact:
         template_stack_override_validation: >-
