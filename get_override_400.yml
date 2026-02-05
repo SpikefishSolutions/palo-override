@@ -22,6 +22,10 @@
         provider: "{{ device }}"
         cmd: "show devices all"
       register: panorama_devices_raw
+  
+    - name: Debug discovered 400-series devices
+      ansible.builtin.debug:
+        var: panorama_devices_raw
 
     - name: Extract PA-4 devices (serial, mgmt_ip, model, template-stack) from Panorama output
       ansible.builtin.set_fact:
@@ -39,9 +43,6 @@
               | list
             )
           }}
-    - name: Debug discovered 400-series devices
-      ansible.builtin.debug:
-        var: fw_400_devices
 
     - name: Derive template stacks from discovered 400-series devices
       ansible.builtin.set_fact:
