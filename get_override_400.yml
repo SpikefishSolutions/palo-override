@@ -35,6 +35,10 @@
             panorama_devices_json.response.result.devices.entry
             | default('')
           }}
+
+    - name: Debug discovered 400-series devices
+      ansible.builtin.debug:
+        var: panorama_devices_text
     
     - name: Split raw device text into per-device blocks
       ansible.builtin.set_fact:
