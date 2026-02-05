@@ -71,6 +71,7 @@
       paloaltonetworks.panos.panos_template_stack:
         provider: "{{ device }}"
         state: gathered
+        gathered_filter: all
       register: template_stack_result_raw_all
 
     - name: Debug discovered 400-series devices
