@@ -28,10 +28,6 @@
       ansible.builtin.set_fact:
         panorama_devices_json: "{{ panorama_devices_raw.stdout | from_json }}"
 
-    - name: Debug discovered 400-series devices
-      ansible.builtin.debug:
-        var: panorama_devices_json
-
     - name: Capture devices text from parsed stdout
       ansible.builtin.set_fact:
         panorama_devices_text: >-
@@ -47,6 +43,10 @@
             panorama_devices_text
             | regex_findall('(?s)- @NAME.*?(?=\\n- @NAME|\\Z)')
           }}
+
+    - name: Debug discovered 400-series devices
+      ansible.builtin.debug:
+        var: panorama_device_blocks
 
     - name: Build PA-4 regex matches list
       ansible.builtin.set_fact:
