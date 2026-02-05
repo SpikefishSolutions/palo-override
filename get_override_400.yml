@@ -36,22 +36,16 @@
             | default([])
           }}
 
-    - name: Debug device list count
-      ansible.builtin.debug:
-        msg:
-          - "devices_count={{ panorama_devices_list | length }}"
-          - "devices_sample={{ (panorama_devices_list | first | default({})) }}"
-
     - name: Extract PA-4 devices (serial, mgmt_ip, model, template-stack) from Panorama output
       ansible.builtin.set_fact:
         fw_400_devices: >-
           {{
             (fw_400_devices | default([]))
             + [ {
+              'hostname': item.hostname | default(''),
               'serial': item.serial | default(''),
               'mgmt_ip': item['ip-address'] | default(''),
               'model': item.model | default(''),
-              'stack': item['template-stack'] | default('')
             } ]
           }}
       loop: "{{ panorama_devices_list }}"
@@ -64,9 +58,96 @@
       ansible.builtin.debug:
         var: fw_400_devices
 
-    - name: Derive template stacks from discovered 400-series devices
+    - name: Build serial -> mgmt IP map for 400-series devices
       ansible.builtin.set_fact:
-        template_stacks: "{{ fw_400_devices | map(attribute='stack') | unique | list }}"
+        fw_400_by_serial: >-
+          {{
+            (fw_400_by_serial | default({}))
+            | combine({ item.serial: item.mgmt_ip })
+          }}
+      loop: "{{ fw_400_devices }}"
+
+    - name: Gather all template stacks
+      paloaltonetworks.panos.panos_template_stack:
+        provider: "{{ device }}"
+        state: gathered
+      register: template_stack_result_raw_all
+
+    - name: Debug discovered 400-series devices
+      ansible.builtin.debug:
+        var: template_stack_result_raw_all
+
+    - name: Normalize gathered template stacks into a list
+      ansible.builtin.set_fact:
+        template_stack_all: >-
+          {{
+            (
+              template_stack_result_raw_all.results
+              | default([])
+              | map(attribute='gathered')
+              | select('defined')
+              | flatten
+              | list
+            )
+            | default(template_stack_result_raw_all.gathered | default([]))
+          }}
+
+    - name: Build list of 400-series serials
+      ansible.builtin.set_fact:
+        fw_400_serials: "{{ fw_400_devices | map(attribute='serial') | list }}"
+
+    - name: Build template stacks with 400-series member firewalls
+      ansible.builtin.set_fact:
+        template_stacks_with_400: >-
+          {{
+            (template_stacks_with_400 | default([]))
+            + [ {
+              'stack': item.name | default(''),
+              'templates': item.templates | default([]),
+              'member_firewalls': (
+                (
+                  ((item.devices | default(item.device | default([]))) | length > 0
+                    and ((item.devices | default(item.device | default([]))) | first) is mapping)
+                  | ternary(
+                      (
+                        (item.devices | default(item.device | default([])))
+                        | map(attribute='serial')
+                        | list
+                      ),
+                      (item.devices | default(item.device | default([])))
+                    )
+                )
+                | intersect(fw_400_serials | default([]))
+              )
+            } ]
+          }}
+      loop: "{{ template_stack_all }}"
+      when:
+        - item is mapping
+        - (
+            (
+              ((item.devices | default(item.device | default([]))) | length > 0
+                and ((item.devices | default(item.device | default([]))) | first) is mapping)
+              | ternary(
+                  (
+                    (item.devices | default(item.device | default([])))
+                    | map(attribute='serial')
+                    | list
+                  ),
+                  (item.devices | default(item.device | default([])))
+                )
+            )
+            | intersect(fw_400_serials | default([]))
+            | length
+          ) > 0
+
+    - name: Derive template stacks from template stack membership
+      ansible.builtin.set_fact:
+        template_stacks: "{{ template_stacks_with_400 | map(attribute='stack') | unique | list }}"
+
+    - name: Debug discovered 400-series devices
+      ansible.builtin.debug:
+        var: template_stacks
 
     - name: Build mapping of template_stack -> mgmt IPs for 400-series firewalls
       ansible.builtin.set_fact:
@@ -74,15 +155,15 @@
           {{
             (fw_400_by_stack | default({}))
             | combine({
-                item: (
-                  (fw_400_devices | default([]))
-                  | selectattr('stack','equalto', item)
-                  | map(attribute='mgmt_ip')
+                item.stack: (
+                  (item.member_firewalls | default([]))
+                  | map('extract', fw_400_by_serial | default({}))
+                  | select('defined')
                   | list
                 )
               })
           }}
-      loop: "{{ fw_400_devices | map(attribute='stack') | unique | list }}"
+      loop: "{{ template_stacks_with_400 }}"
 
     - name: Get Template Stacks Info
       paloaltonetworks.panos.panos_template_stack:
@@ -252,6 +333,11 @@
     - name: Debug stack issues dict
       ansible.builtin.debug:
         var: template_stack_issues_by_stack
+
+
+
+
+
 
 
 
