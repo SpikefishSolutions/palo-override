@@ -6,7 +6,7 @@
   vars:
     device:
       ip_address: "{{ ip_address }}"
-      username: "{{ panroama_username }}"
+      username: "{{ panorama_username }}"
       password: "{{ panorama_password }}"
 
   collections:
