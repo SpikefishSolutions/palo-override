@@ -2,6 +2,7 @@
 - name: Get Templates Override Status
   hosts: AOB-LFMC-1
   connection: local
+  gather_facts: no
 
   vars:
     device:
@@ -23,6 +24,26 @@
         cmd: "show devices all"
       register: panorama_devices_raw
 
+    - name: Debug raw Panorama output summary
+      ansible.builtin.debug:
+        msg:
+          - "stdout_len={{ panorama_devices_raw.stdout | default('') | length }}"
+          - "stdout_head={{ (panorama_devices_raw.stdout | default(''))[:1000] }}"
+
+    - name: Build PA-4 regex matches list
+      ansible.builtin.set_fact:
+        pa4_matches: >-
+          {{
+            panorama_devices_raw.stdout
+            | default('')
+            | regex_findall('(?s)serial:\\s*(\\S+).*?ip-address:\\s*(\\S+).*?model:\\s*(PA-4[^\\s,]*)[\\s,].*?template-stack:\\s*(\\S+)')
+          }}
+
+    - name: Debug PA-4 regex matches
+      ansible.builtin.debug:
+        msg:
+          - "pa4_match_count={{ pa4_matches | length }}"
+          - "pa4_match_sample={{ (pa4_matches | first | default('NO_MATCH')) }}"
     - name: Extract PA-4 devices (serial, mgmt_ip, model, template-stack) from Panorama output
       ansible.builtin.set_fact:
         fw_400_devices: >-
@@ -232,4 +253,5 @@
     - name: Debug stack issues dict
       ansible.builtin.debug:
         var: template_stack_issues_by_stack
+
 
