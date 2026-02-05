@@ -39,6 +39,9 @@
               | list
             )
           }}
+    - name: Debug discovered 400-series devices
+      ansible.builtin.debug:
+        var: fw_400_devices
 
     - name: Derive template stacks from discovered 400-series devices
       ansible.builtin.set_fact:
@@ -228,3 +231,4 @@
     - name: Debug stack issues dict
       ansible.builtin.debug:
         var: template_stack_issues_by_stack
+
