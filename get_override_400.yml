@@ -1,13 +1,13 @@
 ---
 - name: Get Templates Override Status
-  hosts: panorama
+  hosts: LAB-FMC-1
   connection: local
 
   vars:
     device:
       ip_address: "{{ ip_address }}"
-      username: "{{ username }}"
-      password: "{{ password }}"
+      username: "{{ panroama_username }}"
+      password: "{{ panorama_password }}"
 
   collections:
     - paloaltonetworks.panos
