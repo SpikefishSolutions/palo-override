@@ -28,61 +28,27 @@
       ansible.builtin.set_fact:
         panorama_devices_json: "{{ panorama_devices_raw.stdout | from_json }}"
 
-    - name: Capture devices text from parsed stdout
+    - name: Capture devices list from parsed stdout
       ansible.builtin.set_fact:
-        panorama_devices_text: >-
+        panorama_devices_list: >-
           {{
             panorama_devices_json.response.result.devices.entry
-            | default('')
+            | default([])
           }}
 
-    - name: Debug discovered 400-series devices
-      ansible.builtin.debug:
-        var: panorama_devices_text
-    
-    - name: Split raw device text into per-device blocks
-      ansible.builtin.set_fact:
-        panorama_device_blocks: >-
-          {{
-            panorama_devices_text
-            | regex_findall('(?s)- @NAME.*?(?=\\n- @NAME|\\Z)')
-          }}
-
-    - name: Debug discovered 400-series devices
-      ansible.builtin.debug:
-        var: panorama_device_blocks
-
-    - name: Build PA-4 regex matches list
-      ansible.builtin.set_fact:
-        pa4_matches: >-
-          {{
-            panorama_device_blocks
-            | map('regex_findall', '(?s)serial:\\s*(\\S+).*?ip-address:\\s*(\\S+).*?model:\\s*(PA-4[^\\s,]*)[\\s,].*?template-stack:\\s*(\\S+)')
-            | select('length')
-            | map('first')
-            | list
-          }}
-
-    - name: Debug PA-4 regex matches
+    - name: Debug device list count
       ansible.builtin.debug:
         msg:
-          - "pa4_match_count={{ pa4_matches | length }}"
-          - "pa4_match_sample={{ (pa4_matches | first | default('NO_MATCH')) }}"
+          - "devices_count={{ panorama_devices_list | length }}"
+          - "devices_sample={{ (panorama_devices_list | first | default({})) }}"
 
     - name: Extract PA-4 devices (serial, mgmt_ip, model, template-stack) from Panorama output
       ansible.builtin.set_fact:
         fw_400_devices: >-
           {{
-            fw_400_devices | default([])
-            + (
-              pa4_matches
-              | map('list')
-              | map('zip', ['serial','mgmt_ip','model','stack'])
-              | map('map', 'last')
-              | map('items')
-              | map('community.general.items2dict')
-              | list
-            )
+            panorama_devices_list
+            | json_query("[?starts_with(model, 'PA-4')].{serial: serial, mgmt_ip: \"ip-address\", model: model, stack: \"template-stack\"}")
+            | default([])
           }}
 
     - name: Debug discovered 400-series devices
@@ -277,6 +243,11 @@
     - name: Debug stack issues dict
       ansible.builtin.debug:
         var: template_stack_issues_by_stack
+
+
+
+
+
 
 
 
