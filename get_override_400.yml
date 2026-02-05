@@ -24,18 +24,25 @@
         cmd: "show devices all"
       register: panorama_devices_raw
 
-    - name: Debug raw Panorama output summary
+    - name: Capture devices text from response
+      ansible.builtin.set_fact:
+        panorama_devices_text: >-
+          {{
+            panorama_devices_raw.response.result.devices
+            | default('')
+          }}
+
+    - name: Debug Panorama devices text summary
       ansible.builtin.debug:
         msg:
-          - "stdout_len={{ panorama_devices_raw.stdout | default('') | length }}"
-          - "stdout_head={{ (panorama_devices_raw.stdout | default(''))[:1000] }}"
+          - "devices_text_len={{ panorama_devices_text | length }}"
+          - "devices_text_head={{ panorama_devices_text[:1000] }}"
 
     - name: Build PA-4 regex matches list
       ansible.builtin.set_fact:
         pa4_matches: >-
           {{
-            panorama_devices_raw.stdout
-            | default('')
+            panorama_devices_text
             | regex_findall('(?s)serial:\\s*(\\S+).*?ip-address:\\s*(\\S+).*?model:\\s*(PA-4[^\\s,]*)[\\s,].*?template-stack:\\s*(\\S+)')
           }}
 
@@ -44,14 +51,15 @@
         msg:
           - "pa4_match_count={{ pa4_matches | length }}"
           - "pa4_match_sample={{ (pa4_matches | first | default('NO_MATCH')) }}"
+
     - name: Extract PA-4 devices (serial, mgmt_ip, model, template-stack) from Panorama output
       ansible.builtin.set_fact:
         fw_400_devices: >-
           {{
             fw_400_devices | default([])
             + (
-              panorama_devices_raw.stdout
-              | regex_findall('(?s)serial:\s*(\S+).*?ip-address:\s*(\S+).*?model:\s*(PA-4[^\s,]*)[\s,].*?template-stack:\s*(\S+)')
+              panorama_devices_text
+              | regex_findall('(?s)serial:\\s*(\\S+).*?ip-address:\\s*(\\S+).*?model:\\s*(PA-4[^\\s,]*)[\\s,].*?template-stack:\\s*(\\S+)')
               | map('list')
               | map('zip', ['serial','mgmt_ip','model','stack'])
               | map('map', 'last')
@@ -253,5 +261,8 @@
     - name: Debug stack issues dict
       ansible.builtin.debug:
         var: template_stack_issues_by_stack
+
+
+
 
 
