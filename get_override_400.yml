@@ -39,17 +39,24 @@
             panorama_devices_json.response.result.devices.entry
             | default('')
           }}
-
-    - name: Debug discovered 400-series devices
-      ansible.builtin.debug:
-        var: panorama_devices_text
+    
+    - name: Split raw device text into per-device blocks
+      ansible.builtin.set_fact:
+        panorama_device_blocks: >-
+          {{
+            panorama_devices_text
+            | regex_findall('(?s)- @NAME.*?(?=\\n- @NAME|\\Z)')
+          }}
 
     - name: Build PA-4 regex matches list
       ansible.builtin.set_fact:
         pa4_matches: >-
           {{
-            panorama_devices_text
-            | regex_findall('(?s)serial:\\s*(\\S+).*?ip-address:\\s*(\\S+).*?model:\\s*(PA-4[^\\s,]*)[\\s,].*?template-stack:\\s*(\\S+)')
+            panorama_device_blocks
+            | map('regex_findall', '(?s)serial:\\s*(\\S+).*?ip-address:\\s*(\\S+).*?model:\\s*(PA-4[^\\s,]*)[\\s,].*?template-stack:\\s*(\\S+)')
+            | select('length')
+            | map('first')
+            | list
           }}
 
     - name: Debug PA-4 regex matches
@@ -64,8 +71,7 @@
           {{
             fw_400_devices | default([])
             + (
-              panorama_devices_text
-              | regex_findall('(?s)serial:\\s*(\\S+).*?ip-address:\\s*(\\S+).*?model:\\s*(PA-4[^\\s,]*)[\\s,].*?template-stack:\\s*(\\S+)')
+              pa4_matches
               | map('list')
               | map('zip', ['serial','mgmt_ip','model','stack'])
               | map('map', 'last')
@@ -267,6 +273,11 @@
     - name: Debug stack issues dict
       ansible.builtin.debug:
         var: template_stack_issues_by_stack
+
+
+
+
+
 
 
 
