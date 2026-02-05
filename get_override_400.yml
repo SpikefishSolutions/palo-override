@@ -23,12 +23,17 @@
         provider: "{{ device }}"
         cmd: "show devices all"
       register: panorama_devices_raw
+      
+    - name: Parse Panorama stdout JSON
+      ansible.builtin.set_fact:
+        panorama_devices_json: "{{ panorama_devices_raw.stdout | from_json }}"
 
-    - name: Capture devices text from response
+    - name: Capture devices text from parsed stdout
       ansible.builtin.set_fact:
         panorama_devices_text: >-
           {{
-            panorama_devices_raw.stdout.response.result.devices
+            panorama_devices_json.response.result.devices
+            | default('')
           }}
 
     - name: Debug Panorama devices text summary
@@ -260,6 +265,7 @@
     - name: Debug stack issues dict
       ansible.builtin.debug:
         var: template_stack_issues_by_stack
+
 
 
 
