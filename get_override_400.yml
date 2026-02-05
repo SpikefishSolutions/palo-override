@@ -23,7 +23,7 @@
         provider: "{{ device }}"
         cmd: "show devices all"
       register: panorama_devices_raw
-      
+
     - name: Parse Panorama stdout JSON
       ansible.builtin.set_fact:
         panorama_devices_json: "{{ panorama_devices_raw.stdout | from_json }}"
@@ -35,12 +35,6 @@
             panorama_devices_json.response.result.devices
             | default('')
           }}
-
-    - name: Debug Panorama devices text summary
-      ansible.builtin.debug:
-        msg:
-          - "devices_text_len={{ panorama_devices_text | length }}"
-          - "devices_text_head={{ panorama_devices_text[:1000] }}"
 
     - name: Build PA-4 regex matches list
       ansible.builtin.set_fact:
