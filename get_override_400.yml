@@ -36,7 +36,7 @@
       ansible.builtin.set_fact:
         panorama_devices_text: >-
           {{
-            panorama_devices_json.response.result.devices
+            panorama_devices_json.response.result.devices.entry
             | default('')
           }}
 
