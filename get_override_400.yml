@@ -1,6 +1,6 @@
 ---
 - name: Get Templates Override Status
-  hosts: LAB-FMC-1
+  hosts: panoramas
   connection: local
 
   vars:
