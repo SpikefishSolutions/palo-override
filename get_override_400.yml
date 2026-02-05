@@ -28,8 +28,7 @@
       ansible.builtin.set_fact:
         panorama_devices_text: >-
           {{
-            panorama_devices_raw.response
-            | default('')
+            panorama_devices_raw.stdout.response.result.devices
           }}
 
     - name: Debug Panorama devices text summary
@@ -261,6 +260,8 @@
     - name: Debug stack issues dict
       ansible.builtin.debug:
         var: template_stack_issues_by_stack
+
+
 
 
 
