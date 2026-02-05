@@ -46,10 +46,19 @@
       ansible.builtin.set_fact:
         fw_400_devices: >-
           {{
-            panorama_devices_list
-            | json_query("[?starts_with(model, 'PA-4')].{serial: serial, mgmt_ip: \"ip-address\", model: model, stack: \"template-stack\"}")
-            | default([])
+            (fw_400_devices | default([]))
+            + [ {
+              'serial': item.serial | default(''),
+              'mgmt_ip': item['ip-address'] | default(''),
+              'model': item.model | default(''),
+              'stack': item['template-stack'] | default('')
+            } ]
           }}
+      loop: "{{ panorama_devices_list }}"
+      when:
+        - item.model is defined
+        - item.model is string
+        - item.model.startswith('PA-4')
 
     - name: Debug discovered 400-series devices
       ansible.builtin.debug:
@@ -243,6 +252,7 @@
     - name: Debug stack issues dict
       ansible.builtin.debug:
         var: template_stack_issues_by_stack
+
 
 
 
