@@ -1,6 +1,6 @@
 ---
 - name: Get Templates Override Status
-  hosts: panoramas
+  hosts: AOB-LFMC-1
   connection: local
 
   vars:
