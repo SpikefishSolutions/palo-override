@@ -39,14 +39,9 @@
       ansible.builtin.debug:
         msg: "Wrote report to {{ report_output_path }}"
 
-    - name: Slurp JSON report for base64 output
-      ansible.builtin.slurp:
-        src: "{{ report_output_path }}"
-      register: template_stack_issues_json_slurp
-
-    - name: Print base64 JSON payload for copy/paste
+    - name: Print JSON payload for copy/paste
       ansible.builtin.debug:
         msg: |
-          =====BEGIN_TEMPLATE_STACK_ISSUES_JSON_BASE64=====
-          {{ template_stack_issues_json_slurp.content }}
-          =====END_TEMPLATE_STACK_ISSUES_JSON_BASE64=====
+          =====BEGIN_TEMPLATE_STACK_ISSUES_JSON=====
+          {{ template_stack_issues_payload | to_nice_json }}
+          =====END_TEMPLATE_STACK_ISSUES_JSON=====
