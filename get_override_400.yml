@@ -298,17 +298,27 @@
             (template_stack_override_validation | default([]))
             + [ {
                 'stack': item.stack,
+                'template_permitted_ips': (item.template_permitted_ips | default([])),
+                'stack_permitted_ips': (item.stack_permitted_ips | default([])),
+                'missing_in_stack': (item.missing_in_stack | default([])),
                 'expected_mgmt_ips': (fw_400_by_stack[item.stack] | default([])),
                 'overridden_ips': (
                   (item.stack_permitted_ips | default([]))
                   | difference(item.template_permitted_ips | default([]))
                 ),
-                'missing_in_override': (
-                  (fw_400_by_stack[item.stack] | default([]))
-                  | difference(
-                      (item.stack_permitted_ips | default([]))
-                      | difference(item.template_permitted_ips | default([]))
+                'missing': (
+                  (
+                    (item.missing_in_stack | default([]))
+                    + (
+                      (fw_400_by_stack[item.stack] | default([]))
+                      | difference(
+                          (item.stack_permitted_ips | default([]))
+                          | difference(item.template_permitted_ips | default([]))
+                        )
                     )
+                  )
+                  | unique
+                  | list
                 ),
                 'extra_in_override': (
                   (
@@ -319,7 +329,7 @@
                 )
               } ]
           }}
-      loop: "{{ template_stack_mgmt_permitted_ips }}"
+      loop: "{{ template_stack_permitted_ip_compliance }}"
 
     - name: Build dict of stack -> issue details for output
       ansible.builtin.set_fact:
@@ -328,9 +338,11 @@
             (template_stack_issues_by_stack | default({}))
             | combine({
                 item.stack: {
+                  'template_permitted_ips': (item.template_permitted_ips | default([])),
+                  'stack_permitted_ips': (item.stack_permitted_ips | default([])),
                   'expected_mgmt_ips': (item.expected_mgmt_ips | default([])),
                   'overridden_ips': (item.overridden_ips | default([])),
-                  'missing_in_override': (item.missing_in_override | default([])),
+                  'missing': (item.missing | default([])),
                   'extra_in_override': (item.extra_in_override | default([]))
                 }
               })
