@@ -359,28 +359,3 @@
           template_stack_issues_by_stack: "{{ template_stack_issues_by_stack | default({}) }}"
         per_host: false
         aggregate: false
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
