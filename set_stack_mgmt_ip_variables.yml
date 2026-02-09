@@ -9,7 +9,7 @@
       ip_address: "{{ ip_address }}"
       username: "{{ panorama_username }}"
       password: "{{ panorama_password }}"
-    mgmt_variable_prefix: "fw_mgmt_"
+    mgmt_variable_prefix: "$fw_mgmt_"
 
   collections:
     - paloaltonetworks.panos
