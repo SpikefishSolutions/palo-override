@@ -1,0 +1,93 @@
+---
+- name: Set Panorama template stack variables for firewall management IPs
+  hosts: AOB-LFMC-1
+  connection: local
+  gather_facts: false
+
+  vars:
+    device:
+      ip_address: "{{ ip_address }}"
+      username: "{{ panorama_username }}"
+      password: "{{ panorama_password }}"
+    mgmt_variable_prefix: "fw_mgmt_"
+
+  collections:
+    - paloaltonetworks.panos
+
+  tasks:
+    - name: Ensure stack issues payload is provided
+      ansible.builtin.assert:
+        that:
+          - template_stack_issues_by_stack is defined
+        fail_msg: "template_stack_issues_by_stack is required."
+
+    - name: Normalize stack issues payload to a mapping
+      ansible.builtin.set_fact:
+        template_stack_issues_payload: >-
+          {{
+            template_stack_issues_by_stack
+            if template_stack_issues_by_stack is mapping
+            else (template_stack_issues_by_stack | from_yaml)
+          }}
+
+    - name: Build stack and management IP source list
+      ansible.builtin.set_fact:
+        stack_mgmt_ip_source: >-
+          {{
+            (stack_mgmt_ip_source | default([]))
+            + [ {
+              'stack': item.key,
+              'expected_mgmt_ips': (
+                item.value.expected_mgmt_ips
+                | default([])
+                | select('string')
+                | map('trim')
+                | select('length')
+                | map('regex_replace', '^(\\d+\\.\\d+\\.\\d+\\.\\d+)$', '\\1/32')
+                | unique
+                | list
+              )
+            } ]
+          }}
+      loop: "{{ template_stack_issues_payload | dict2items }}"
+
+    - name: Build variable entries to set
+      ansible.builtin.set_fact:
+        stack_variable_entries: >-
+          {{
+            (stack_variable_entries | default([]))
+            + [ {
+              'stack': item.0.stack,
+              'ip': item.1,
+              'variable_name': (
+                mgmt_variable_prefix
+                ~ (item.1 | regex_replace('[^0-9A-Za-z_]', '_'))
+              )
+            } ]
+          }}
+      loop: "{{ stack_mgmt_ip_source | subelements('expected_mgmt_ips', skip_missing=True) }}"
+
+    - name: Show variable entries to configure
+      ansible.builtin.debug:
+        var: stack_variable_entries
+
+    - name: Set stack variables for management IPs
+      vars:
+        variable_xpath: >-
+          /config/devices/entry[@name='localhost.localdomain']/template-stack/entry[@name='{{ item.stack }}']
+          /variable/entry[@name='{{ item.variable_name }}']
+      paloaltonetworks.panos.panos_type_cmd:
+        provider: "{{ device }}"
+        cmd: set
+        xpath: "{{ variable_xpath | regex_replace('\\s+', '') }}"
+        element: "<type><ip-netmask>{{ item.ip }}</ip-netmask></type>"
+      loop: "{{ stack_variable_entries | default([]) }}"
+      register: stack_variable_set_result
+
+    - name: Publish stack variable update results for downstream workflow nodes
+      ansible.builtin.set_stats:
+        data:
+          stack_variable_entries: "{{ stack_variable_entries | default([]) }}"
+          stack_variable_set_result: "{{ stack_variable_set_result.results | default([]) }}"
+        per_host: false
+        aggregate: false
