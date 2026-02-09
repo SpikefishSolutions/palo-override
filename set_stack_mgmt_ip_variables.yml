@@ -9,7 +9,9 @@
       ip_address: "{{ ip_address }}"
       username: "{{ panorama_username }}"
       password: "{{ panorama_password }}"
-    mgmt_variable_prefix: "$fw_mgmt_"
+    mgmt_variable_names:
+      - '$fw-mgmt-ip-a'
+      - '$fw-mgmt-ip-b'
 
   collections:
     - paloaltonetworks.panos
@@ -51,21 +53,33 @@
           }}
       loop: "{{ template_stack_issues_payload | dict2items }}"
 
-    - name: Build variable entries to set
+    - name: Build variable entry for management IP A
       ansible.builtin.set_fact:
         stack_variable_entries: >-
           {{
             (stack_variable_entries | default([]))
             + [ {
-              'stack': item.0.stack,
-              'ip': item.1,
-              'variable_name': (
-                mgmt_variable_prefix
-                ~ (item.1 | regex_replace('[^0-9A-Za-z_]', '_'))
-              )
+              'stack': item.stack,
+              'ip': item.expected_mgmt_ips[0],
+              'variable_name': mgmt_variable_names[0]
             } ]
           }}
-      loop: "{{ stack_mgmt_ip_source | subelements('expected_mgmt_ips', skip_missing=True) }}"
+      loop: "{{ stack_mgmt_ip_source | default([]) }}"
+      when: (item.expected_mgmt_ips | default([]) | length) > 0
+
+    - name: Build variable entry for management IP B
+      ansible.builtin.set_fact:
+        stack_variable_entries: >-
+          {{
+            (stack_variable_entries | default([]))
+            + [ {
+              'stack': item.stack,
+              'ip': item.expected_mgmt_ips[1],
+              'variable_name': mgmt_variable_names[1]
+            } ]
+          }}
+      loop: "{{ stack_mgmt_ip_source | default([]) }}"
+      when: (item.expected_mgmt_ips | default([]) | length) > 1
 
     - name: Show variable entries to configure
       ansible.builtin.debug:
