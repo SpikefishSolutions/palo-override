@@ -341,6 +341,14 @@
       ansible.builtin.debug:
         var: template_stack_issues_by_stack
 
+    - name: Publish stack issues for downstream workflow nodes
+      ansible.builtin.set_stats:
+        data:
+          template_stack_issues_by_stack: "{{ template_stack_issues_by_stack | default({}) }}"
+        per_host: false
+        aggregate: false
+
+
 
 
 

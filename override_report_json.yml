@@ -1,0 +1,52 @@
+---
+- name: Write template stack issues JSON report
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    report_output_path: "/runner/artifacts/template_stack_issues_by_stack.json"
+
+  tasks:
+    - name: Ensure payload variable is provided
+      ansible.builtin.assert:
+        that:
+          - template_stack_issues_by_stack is defined
+        fail_msg: "template_stack_issues_by_stack is required."
+
+    - name: Normalize payload to a dictionary
+      ansible.builtin.set_fact:
+        template_stack_issues_payload: >-
+          {{
+            template_stack_issues_by_stack
+            if template_stack_issues_by_stack is mapping
+            else (template_stack_issues_by_stack | from_yaml)
+          }}
+
+    - name: Ensure report output directory exists
+      ansible.builtin.file:
+        path: "{{ report_output_path | dirname }}"
+        state: directory
+        mode: "0755"
+
+    - name: Write JSON report artifact
+      ansible.builtin.copy:
+        dest: "{{ report_output_path }}"
+        content: "{{ template_stack_issues_payload | to_nice_json }}"
+        mode: "0644"
+
+    - name: Show report path
+      ansible.builtin.debug:
+        msg: "Wrote report to {{ report_output_path }}"
+
+    - name: Slurp JSON report for base64 output
+      ansible.builtin.slurp:
+        src: "{{ report_output_path }}"
+      register: template_stack_issues_json_slurp
+
+    - name: Print base64 JSON payload for copy/paste
+      ansible.builtin.debug:
+        msg: |
+          =====BEGIN_TEMPLATE_STACK_ISSUES_JSON_BASE64=====
+          {{ template_stack_issues_json_slurp.content }}
+          =====END_TEMPLATE_STACK_ISSUES_JSON_BASE64=====
