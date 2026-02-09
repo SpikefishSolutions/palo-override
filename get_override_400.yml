@@ -80,18 +80,7 @@
 
     - name: Normalize gathered template stacks into a list
       ansible.builtin.set_fact:
-        template_stack_all: >-
-          {{
-            (
-              template_stack_result_raw_all.results
-              | default([])
-              | map(attribute='gathered')
-              | select('defined')
-              | flatten
-              | list
-            )
-            | default(template_stack_result_raw_all.gathered | default([]))
-          }}
+        template_stack_all: "{{ template_stack_result_raw_all.gathered | default([]) }}"
 
     - name: Debug discovered 400-series devices
       ansible.builtin.debug:
