@@ -2,7 +2,7 @@
 - name: Get Templates Override Status
   hosts: AOB-LFMC-1
   connection: local
-  gather_facts: no
+  gather_facts: false
 
   vars:
     device:
