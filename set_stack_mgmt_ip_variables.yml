@@ -42,7 +42,7 @@
                 | default([])
                 | select('string')
                 | map('trim')
-                | select('length')
+                | reject('equalto', '')
                 | map('regex_replace', '^(\\d+\\.\\d+\\.\\d+\\.\\d+)$', '\\1/32')
                 | unique
                 | list
