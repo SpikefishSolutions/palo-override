@@ -299,13 +299,22 @@
             + [ {
                 'stack': item.stack,
                 'expected_mgmt_ips': (fw_400_by_stack[item.stack] | default([])),
-                'overridden_ips': (item.stack_permitted_ips | default([])),
+                'overridden_ips': (
+                  (item.stack_permitted_ips | default([]))
+                  | difference(item.template_permitted_ips | default([]))
+                ),
                 'missing_in_override': (
                   (fw_400_by_stack[item.stack] | default([]))
-                  | difference(item.stack_permitted_ips | default([]))
+                  | difference(
+                      (item.stack_permitted_ips | default([]))
+                      | difference(item.template_permitted_ips | default([]))
+                    )
                 ),
                 'extra_in_override': (
-                  (item.stack_permitted_ips | default([]))
+                  (
+                    (item.stack_permitted_ips | default([]))
+                    | difference(item.template_permitted_ips | default([]))
+                  )
                   | difference(fw_400_by_stack[item.stack] | default([]))
                 )
               } ]
