@@ -93,9 +93,17 @@
             | default(template_stack_result_raw_all.gathered | default([]))
           }}
 
+    - name: Debug discovered 400-series devices
+      ansible.builtin.debug:
+        var: template_stack_all
+
     - name: Build list of 400-series serials
       ansible.builtin.set_fact:
         fw_400_serials: "{{ fw_400_devices | map(attribute='serial') | list }}"
+
+    - name: Debug discovered 400-series devices
+      ansible.builtin.debug:
+        var: fw_400_serials
 
     - name: Build template stacks with 400-series member firewalls
       ansible.builtin.set_fact:
