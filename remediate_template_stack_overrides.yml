@@ -29,26 +29,9 @@
             else (template_stack_issues_by_stack | from_yaml)
           }}
 
-    - name: Build remediation plan from expected firewall management IPs
+    - name: Build remediation plan as stacks in question
       ansible.builtin.set_fact:
-        stack_remediation_plan: >-
-          {{
-            (stack_remediation_plan | default([]))
-            + [ {
-              'stack': item.key,
-              'desired_override_ips': (
-                item.value.expected_mgmt_ips
-                | default([])
-                | select('string')
-                | map('trim')
-                | reject('equalto', '')
-                | map('regex_replace', '^(\\d+\\.\\d+\\.\\d+\\.\\d+)$', '\\1/32')
-                | unique
-                | list
-              )
-            } ]
-          }}
-      loop: "{{ template_stack_issues_payload | dict2items }}"
+        stack_remediation_plan: "{{ template_stack_issues_payload.keys() | list }}"
 
     - name: Show remediation plan
       ansible.builtin.debug:
@@ -57,7 +40,7 @@
     - name: Remove current management ACL override from each stack
       vars:
         stack_permitted_ip_xpath: >-
-          /config/devices/entry[@name='localhost.localdomain']/template-stack/entry[@name='{{ item.stack }}']
+          /config/devices/entry[@name='localhost.localdomain']/template-stack/entry[@name='{{ item }}']
           /config/devices/entry[@name='localhost.localdomain']/deviceconfig/system/permitted-ip
       paloaltonetworks.panos.panos_type_cmd:
         provider: "{{ device }}"
@@ -67,31 +50,10 @@
       loop: "{{ stack_remediation_plan | default([]) }}"
       failed_when: false
 
-    - name: Reapply management ACL override from desired firewall IPs
-      vars:
-        stack_permitted_ip_xpath: >-
-          /config/devices/entry[@name='localhost.localdomain']/template-stack/entry[@name='{{ item.stack }}']
-          /config/devices/entry[@name='localhost.localdomain']/deviceconfig/system/permitted-ip
-        permitted_ip_entries_xml: >-
-          {{
-            item.desired_override_ips
-            | map('regex_replace', '^(.*)$', '<entry name="\\1"/>')
-            | join('')
-          }}
-      paloaltonetworks.panos.panos_type_cmd:
-        provider: "{{ device }}"
-        cmd: set
-        xpath: "{{ stack_permitted_ip_xpath | regex_replace('\\s+', '') }}"
-        element: "{{ permitted_ip_entries_xml }}"
-      register: stack_override_set_result
-      loop: "{{ stack_remediation_plan | default([]) }}"
-      when: (item.desired_override_ips | default([]) | length) > 0
-
     - name: Publish remediation results for downstream workflow nodes
       ansible.builtin.set_stats:
         data:
           stack_remediation_plan: "{{ stack_remediation_plan | default([]) }}"
           stack_override_delete_result: "{{ stack_override_delete_result.results | default([]) }}"
-          stack_override_set_result: "{{ stack_override_set_result.results | default([]) }}"
         per_host: false
         aggregate: false
