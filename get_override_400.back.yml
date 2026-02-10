@@ -36,70 +36,6 @@
             | default([])
           }}
 
-    - name: Normalize requested cluster hostnames input
-      ansible.builtin.set_fact:
-        requested_cluster_hostnames: >-
-          {{
-            (
-              cluster_hostnames
-              if (cluster_hostnames is defined and cluster_hostnames is sequence and cluster_hostnames is not string)
-              else ((cluster_hostnames | default('') | string).split(','))
-            )
-            | map('string')
-            | map('trim')
-            | map('regex_replace', '^"|"$', '')
-            | map('regex_replace', "^'|'$", '')
-            | reject('equalto', '')
-            | unique
-            | list
-          }}
-
-    - name: Validate provided cluster hostname format
-      ansible.builtin.assert:
-        that:
-          - item is match('.*\d$')
-        fail_msg: "Cluster hostname '{{ item }}' must end in a digit (example: host-name-100)."
-      loop: "{{ requested_cluster_hostnames | default([]) }}"
-      when: (requested_cluster_hostnames | default([]) | length) > 0
-
-    - name: Expand cluster hostnames to device hostnames (.1 and .2 peers)
-      ansible.builtin.set_fact:
-        requested_device_hostnames: >-
-          {{
-            (requested_device_hostnames | default([]))
-            + [
-              (item | regex_replace('\d$', '1')),
-              (item | regex_replace('\d$', '2'))
-            ]
-          }}
-      loop: "{{ requested_cluster_hostnames | default([]) }}"
-      when: (requested_cluster_hostnames | default([]) | length) > 0
-
-    - name: Normalize expanded requested device hostnames
-      ansible.builtin.set_fact:
-        requested_device_hostnames: "{{ requested_device_hostnames | default([]) | unique | list }}"
-
-    - name: Track requested hostnames not found in Panorama
-      ansible.builtin.set_fact:
-        requested_device_hostnames_not_found: >-
-          {{
-            (requested_device_hostnames | default([]))
-            | difference(
-                panorama_devices_list
-                | map(attribute='hostname')
-                | select('defined')
-                | list
-              )
-          }}
-      when: (requested_device_hostnames | default([]) | length) > 0
-
-    - name: Debug requested device hostname filter
-      ansible.builtin.debug:
-        msg:
-          requested_cluster_hostnames: "{{ requested_cluster_hostnames | default([]) }}"
-          requested_device_hostnames: "{{ requested_device_hostnames | default([]) }}"
-          requested_device_hostnames_not_found: "{{ requested_device_hostnames_not_found | default([]) }}"
-
     - name: Extract PA-4 devices (serial, mgmt_ip, model, template-stack) from Panorama output
       ansible.builtin.set_fact:
         fw_400_devices: >-
@@ -117,7 +53,6 @@
         - item.model is defined
         - item.model is string
         - item.model.startswith('PA-4')
-        - (requested_device_hostnames | default([]) | length) == 0 or (item.hostname | default('')) in (requested_device_hostnames | default([]))
 
     - name: Debug discovered 400-series devices
       ansible.builtin.debug:
@@ -483,6 +418,5 @@
         data:
           template_stack_issues_by_stack: "{{ template_stack_issues_by_stack | default({}) }}"
           fw_400_missing_mgmt_ip: "{{ fw_400_missing_mgmt_ip | default([]) }}"
-          requested_device_hostnames_not_found: "{{ requested_device_hostnames_not_found | default([]) }}"
         per_host: false
         aggregate: false
