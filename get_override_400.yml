@@ -58,6 +58,38 @@
       ansible.builtin.debug:
         var: fw_400_devices
 
+    - name: Track 400-series devices missing management IP
+      ansible.builtin.set_fact:
+        fw_400_missing_mgmt_ip: >-
+          {{
+            (fw_400_missing_mgmt_ip | default([]))
+            + [ {
+              'hostname': item.hostname | default(''),
+              'serial': item.serial | default(''),
+              'model': item.model | default('')
+            } ]
+          }}
+      loop: "{{ fw_400_devices | default([]) }}"
+      when: (item.mgmt_ip | default('') | trim | length) == 0
+
+    - name: Build list of 400-series devices with management IP
+      ansible.builtin.set_fact:
+        fw_400_devices_with_mgmt_ip: >-
+          {{
+            (fw_400_devices_with_mgmt_ip | default([]))
+            + [ item ]
+          }}
+      loop: "{{ fw_400_devices | default([]) }}"
+      when: (item.mgmt_ip | default('') | trim | length) > 0
+
+    - name: Keep only 400-series devices with management IP
+      ansible.builtin.set_fact:
+        fw_400_devices: "{{ fw_400_devices_with_mgmt_ip | default([]) }}"
+
+    - name: Debug skipped 400-series devices missing management IP
+      ansible.builtin.debug:
+        var: fw_400_missing_mgmt_ip
+
     - name: Build serial -> mgmt IP map for 400-series devices
       ansible.builtin.set_fact:
         fw_400_by_serial: >-
@@ -385,5 +417,6 @@
       ansible.builtin.set_stats:
         data:
           template_stack_issues_by_stack: "{{ template_stack_issues_by_stack | default({}) }}"
+          fw_400_missing_mgmt_ip: "{{ fw_400_missing_mgmt_ip | default([]) }}"
         per_host: false
         aggregate: false
