@@ -349,6 +349,34 @@
           }}
       loop: "{{ template_stack_override_validation }}"
 
+    - name: Build filtered stack issues map (skip stacks with extra overrides)
+      ansible.builtin.set_fact:
+        template_stack_issues_filtered: >-
+          {{
+            (template_stack_issues_filtered | default({}))
+            | combine({ item.key: item.value })
+          }}
+      loop: "{{ template_stack_issues_by_stack | default({}) | dict2items }}"
+      when: (item.value.extra_in_override | default([]) | length) == 0
+
+    - name: Track stacks skipped due to extra overrides
+      ansible.builtin.set_fact:
+        template_stack_skipped_due_to_extra_override: >-
+          {{
+            (template_stack_skipped_due_to_extra_override | default([]))
+            + [ item.key ]
+          }}
+      loop: "{{ template_stack_issues_by_stack | default({}) | dict2items }}"
+      when: (item.value.extra_in_override | default([]) | length) > 0
+
+    - name: Replace stack issues map with filtered results
+      ansible.builtin.set_fact:
+        template_stack_issues_by_stack: "{{ template_stack_issues_filtered | default({}) }}"
+
+    - name: Debug stacks skipped due to extra overrides
+      ansible.builtin.debug:
+        var: template_stack_skipped_due_to_extra_override
+
     - name: Debug stack issues dict
       ansible.builtin.debug:
         var: template_stack_issues_by_stack
