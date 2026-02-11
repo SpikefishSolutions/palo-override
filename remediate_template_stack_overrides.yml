@@ -1,6 +1,6 @@
 ---
 - name: Remediate template stack management ACL overrides
-  hosts: AOB-LFMC-1
+  hosts: "{{ workflow_target_host }}"
   connection: local
   gather_facts: false
 

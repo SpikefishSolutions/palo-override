@@ -1,6 +1,6 @@
 ---
 - name: Set Panorama template stack variables for firewall management IPs
-  hosts: AOB-LFMC-1
+  hosts: "{{ workflow_target_host }}"
   connection: local
   gather_facts: false
 

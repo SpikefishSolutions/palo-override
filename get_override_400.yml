@@ -1,6 +1,6 @@
 ---
 - name: Get Templates Override Status
-  hosts: AOB-LFMC-1
+  hosts: "{{ workflow_target_host }}"
   connection: local
   gather_facts: false
 
