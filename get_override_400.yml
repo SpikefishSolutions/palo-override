@@ -41,22 +41,13 @@
         requested_cluster_hostnames: >-
           {{
             (
-              (
-                (
-                  cluster_hostnames
-                  if (cluster_hostnames is defined and cluster_hostnames is sequence and cluster_hostnames is not string)
-                  else [cluster_hostnames | default('')]
-                )
-                | map('string')
-                | join('\n')
-              )
+              (cluster_hostnames | default('') | string)
               | replace('\r\n', '\n')
               | replace('\r', '\n')
               | replace('\\n', '\n')
               | replace(',', '\n')
               | split('\n')
             )
-            | map('string')
             | map('trim')
             | map('regex_replace', '^"|"$', '')
             | map('regex_replace', "^'|'$", '')
@@ -64,6 +55,12 @@
             | unique
             | list
           }}
+
+    - name: Debug raw cluster hostname input
+      ansible.builtin.debug:
+        msg:
+          cluster_hostnames_raw: "{{ cluster_hostnames | default('') }}"
+          requested_cluster_hostnames: "{{ requested_cluster_hostnames | default([]) }}"
 
     - name: Validate provided cluster hostname format
       ansible.builtin.assert:
