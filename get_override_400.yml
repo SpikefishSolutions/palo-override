@@ -499,12 +499,6 @@
       ansible.builtin.debug:
         var: template_stack_issues_by_stack
 
-    - name: Debug stacks and devices requiring override remediation
-      ansible.builtin.debug:
-        msg:
-          template_stacks_requiring_override_fix: "{{ template_stacks_requiring_override_fix | default({}) }}"
-          devices_requiring_override_fix: "{{ devices_requiring_override_fix | default([]) }}"
-
     - name: Debug skipped items summary
       ansible.builtin.debug:
         msg:
@@ -515,6 +509,12 @@
           template_stacks_requiring_override_fix: "{{ template_stacks_requiring_override_fix | default({}) }}"
           devices_requiring_override_fix: "{{ devices_requiring_override_fix | default([]) }}"
           fw_400_missing_mgmt_ip: "{{ fw_400_missing_mgmt_ip | default([]) }}"
+
+    - name: Debug stacks and devices requiring override remediation
+      ansible.builtin.debug:
+        msg:
+          template_stacks_requiring_override_fix: "{{ template_stacks_requiring_override_fix | default({}) }}"
+          devices_requiring_override_fix: "{{ devices_requiring_override_fix | default([]) }}"
 
     - name: Publish stack issues for downstream workflow nodes
       ansible.builtin.set_stats:
