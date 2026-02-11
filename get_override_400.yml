@@ -207,6 +207,16 @@
         var: fw_400_serials
 
     - name: Build template stacks with 400-series member firewalls
+      vars:
+        stack_members_raw: "{{ item.devices | default(item.device, true) | default([], true) }}"
+        stack_member_serials: >-
+          {{
+            (
+              (stack_members_raw | length > 0 and (stack_members_raw | first) is mapping)
+              | ternary((stack_members_raw | map(attribute='serial') | list), stack_members_raw)
+            )
+            | default([])
+          }}
       ansible.builtin.set_fact:
         template_stacks_with_400: >-
           {{
@@ -215,18 +225,7 @@
               'stack': item.name | default(''),
               'templates': item.templates | default([]),
               'member_firewalls': (
-                (
-                  ((item.devices | default(item.device | default([]))) | length > 0
-                    and ((item.devices | default(item.device | default([]))) | first) is mapping)
-                  | ternary(
-                      (
-                        (item.devices | default(item.device | default([])))
-                        | map(attribute='serial')
-                        | list
-                      ),
-                      (item.devices | default(item.device | default([])))
-                    )
-                )
+                stack_member_serials
                 | intersect(fw_400_serials | default([]))
               )
             } ]
@@ -234,22 +233,7 @@
       loop: "{{ template_stack_all }}"
       when:
         - item is mapping
-        - (
-            (
-              ((item.devices | default(item.device | default([]))) | length > 0
-                and ((item.devices | default(item.device | default([]))) | first) is mapping)
-              | ternary(
-                  (
-                    (item.devices | default(item.device | default([])))
-                    | map(attribute='serial')
-                    | list
-                  ),
-                  (item.devices | default(item.device | default([])))
-                )
-            )
-            | intersect(fw_400_serials | default([]))
-            | length
-          ) > 0
+        - (stack_member_serials | intersect(fw_400_serials | default([])) | length) > 0
 
     - name: Derive template stacks from template stack membership
       ansible.builtin.set_fact:
@@ -322,9 +306,42 @@
         - item.templates is defined
         - item.templates | length > 0
 
+    - name: Track stacks skipped due to missing templates in template stack
+      ansible.builtin.set_fact:
+        template_stacks_missing_templates: >-
+          {{
+            (fw_400_by_stack.keys() | list)
+            | difference((template_stack_to_global | default({})).keys() | list)
+          }}
+
+    - name: Keep only stacks that have a global template mapping
+      ansible.builtin.set_fact:
+        fw_400_by_stack: >-
+          {{
+            (
+              fw_400_by_stack
+              | default({})
+              | dict2items
+              | selectattr('key', 'in', ((template_stack_to_global | default({})).keys() | list))
+              | list
+              | items2dict
+            )
+          }}
+
     - name: Build unique global template list for queried stacks
       ansible.builtin.set_fact:
-        global_templates_for_queried_stacks: "{{ template_stack_to_global.values() | list | unique }}"
+        global_templates_for_queried_stacks: >-
+          {{
+            (
+              template_stack_to_global
+              | default({})
+              | dict2items
+              | selectattr('key', 'in', (fw_400_by_stack.keys() | list))
+              | map(attribute='value')
+              | unique
+              | list
+            )
+          }}
 
     - name: Pull management permitted IPs from template + template stack
       vars:
@@ -546,6 +563,7 @@
           fw_400_missing_mgmt_ip: "{{ fw_400_missing_mgmt_ip | default([]) }}"
           template_stacks_skipped_due_to_extra_override: "{{ template_stacks_skipped_due_to_extra_override | default([]) }}"
           template_stacks_not_requiring_remediation: "{{ template_stacks_not_requiring_remediation | default([]) }}"
+          template_stacks_missing_templates: "{{ template_stacks_missing_templates | default([]) }}"
 
     - name: Debug stacks and devices requiring override remediation
       ansible.builtin.debug:
@@ -564,5 +582,6 @@
           skipped_not_400_series: "{{ skipped_not_400_series | default([]) }}"
           template_stacks_skipped_due_to_extra_override: "{{ template_stacks_skipped_due_to_extra_override | default([]) }}"
           template_stacks_not_requiring_remediation: "{{ template_stacks_not_requiring_remediation | default([]) }}"
+          template_stacks_missing_templates: "{{ template_stacks_missing_templates | default([]) }}"
         per_host: false
         aggregate: false
