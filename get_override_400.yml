@@ -41,16 +41,18 @@
         requested_cluster_hostnames: >-
           {{
             (
+              (cluster_hostnames | string)
+              | replace('\r\n', '\n')
+              | replace('\r', '\n')
+              | replace('\\n', '\n')
+              | replace(',', '\n')
+              | split('\n')
+            )
+            if (cluster_hostnames is defined and cluster_hostnames is string)
+            else (
               cluster_hostnames
-              if (cluster_hostnames is defined and cluster_hostnames is string)
-              else (
-                (cluster_hostnames | default('') | string)
-                | replace('\r\n', '\n')
-                | replace('\r', '\n')
-                | replace('\\n', '\n')
-                | replace(',', '\n')
-                | split('\n')
-              )
+              if (cluster_hostnames is defined and cluster_hostnames is sequence and cluster_hostnames is not string)
+              else []
             )
             | map('string')
             | map('trim')
