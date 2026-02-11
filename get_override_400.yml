@@ -427,7 +427,7 @@
                 'stack_permitted_ips': (item.stack_permitted_ips | default([])),
                 'missing_in_stack': (item.missing_in_stack | default([])),
                 'expected_mgmt_ips': (fw_400_by_stack[item.stack] | default([])),
-                'overridden_ips': (
+                'override_ips': (
                   (item.stack_permitted_ips | default([]))
                   | difference(item.template_permitted_ips | default([]))
                 ),
@@ -466,14 +466,35 @@
                   'template_permitted_ips': (item.template_permitted_ips | default([])),
                   'stack_permitted_ips': (item.stack_permitted_ips | default([])),
                   'expected_mgmt_ips': (item.expected_mgmt_ips | default([])),
-                  'overridden_ips': (item.overridden_ips | default([])),
-                  'override_ips': (item.overridden_ips | default([])),
+                  'override_ips': (item.override_ips | default([])),
                   'missing': (item.missing | default([])),
                   'extra_in_override': (item.extra_in_override | default([]))
                 }
               })
           }}
       loop: "{{ template_stack_override_validation }}"
+
+    - name: Track stacks skipped from remediation due to extra overrides
+      ansible.builtin.set_fact:
+        template_stacks_skipped_due_to_extra_override: >-
+          {{
+            (template_stacks_skipped_due_to_extra_override | default([]))
+            + [ item.key ]
+          }}
+      loop: "{{ template_stack_issues_by_stack | default({}) | dict2items }}"
+      when: (item.value.extra_in_override | default([]) | length) > 0
+
+    - name: Track stacks skipped from remediation when stack is empty and all template entries are missing
+      ansible.builtin.set_fact:
+        template_stacks_not_requiring_remediation: >-
+          {{
+            (template_stacks_not_requiring_remediation | default([]))
+            + [ item.key ]
+          }}
+      loop: "{{ template_stack_issues_by_stack | default({}) | dict2items }}"
+      when:
+        - (item.value.stack_permitted_ips | default([]) | length) == 0
+        - ((item.value.template_permitted_ips | default([])) | difference(item.value.missing | default([])) | length) == 0
 
     - name: Build stacks that require override remediation
       ansible.builtin.set_fact:
@@ -484,9 +505,12 @@
           }}
       loop: "{{ template_stack_issues_by_stack | default({}) | dict2items }}"
       when:
-        - ((item.value.override_ips | default([]) | length) > 0)
-          or ((item.value.missing | default([]) | length) > 0)
-          or (((mgmt_variable_names | default([])) | difference(item.value.stack_permitted_ips | default([])) | length) > 0)
+        - (item.value.override_ips | default([]) | length) > 0
+        - (item.value.extra_in_override | default([]) | length) == 0
+        - not (
+            (item.value.stack_permitted_ips | default([]) | length) == 0
+            and ((item.value.template_permitted_ips | default([])) | difference(item.value.missing | default([])) | length) == 0
+          )
 
     - name: Build device list requiring override remediation
       ansible.builtin.set_fact:
@@ -520,6 +544,8 @@
           requested_device_hostnames_not_found: "{{ requested_device_hostnames_not_found | default([]) }}"
           skipped_not_400_series: "{{ skipped_not_400_series | default([]) }}"
           fw_400_missing_mgmt_ip: "{{ fw_400_missing_mgmt_ip | default([]) }}"
+          template_stacks_skipped_due_to_extra_override: "{{ template_stacks_skipped_due_to_extra_override | default([]) }}"
+          template_stacks_not_requiring_remediation: "{{ template_stacks_not_requiring_remediation | default([]) }}"
 
     - name: Debug stacks and devices requiring override remediation
       ansible.builtin.debug:
@@ -536,5 +562,7 @@
           fw_400_missing_mgmt_ip: "{{ fw_400_missing_mgmt_ip | default([]) }}"
           requested_device_hostnames_not_found: "{{ requested_device_hostnames_not_found | default([]) }}"
           skipped_not_400_series: "{{ skipped_not_400_series | default([]) }}"
+          template_stacks_skipped_due_to_extra_override: "{{ template_stacks_skipped_due_to_extra_override | default([]) }}"
+          template_stacks_not_requiring_remediation: "{{ template_stacks_not_requiring_remediation | default([]) }}"
         per_host: false
         aggregate: false
