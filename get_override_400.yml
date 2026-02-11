@@ -42,7 +42,7 @@
           {{
             (
               cluster_hostnames
-              if (cluster_hostnames is defined and cluster_hostnames is sequence and cluster_hostnames is not string)
+              if (cluster_hostnames is defined and cluster_hostnames is string)
               else (
                 (cluster_hostnames | default('') | string)
                 | replace('\r\n', '\n')
