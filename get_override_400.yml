@@ -358,6 +358,21 @@
             loop_var: item
             label: "stack={{ item }}"
 
+        - name: Build global template -> permitted IP list map
+          ansible.builtin.set_fact:
+            global_template_permitted_ips_by_template: >-
+              {{
+                (global_template_permitted_ips_by_template | default({}))
+                | combine({
+                    (item.item | default(item.template_name | default(''))): (
+                      (item.stdout_xml | default(''))
+                      | regex_findall('entry name="([^\"]+)"')
+                      | list
+                    )
+                  })
+              }}
+          loop: "{{ template_permitted_from_global_raw.results | default([]) }}"
+
         # Parse XML -> list of entry names (IP/subnet). This is the key extraction.
         # We look for: <entry name="1.2.3.4/32"> or <entry name="10.0.0.0/8">
         - name: Build a per-stack report (stack, template, template_permitted_ips, stack_permitted_ips)
@@ -369,14 +384,8 @@
                   'stack': item,
                   'template': template_stack_to_global[item],
                   'template_permitted_ips': (
-                    (template_permitted_from_global_raw.results
-                      | selectattr('item', 'equalto', template_stack_to_global[item])
-                      | map(attribute='stdout_xml')
-                      | first
-                      | default('')
-                    )
-                    | regex_findall('entry name="([^\"]+)"')
-                    | list
+                    global_template_permitted_ips_by_template[template_stack_to_global[item]]
+                    | default([])
                   ),
                   'stack_permitted_ips': (
                     (template_stack_permitted_from_stack_raw.results
