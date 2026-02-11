@@ -340,7 +340,7 @@
           paloaltonetworks.panos.panos_type_cmd:
             provider: "{{ device }}"
             cmd: "get"
-            xpath: "{{ template_xpath | regex_replace('\s+', '') }}"
+            xpath: "{{ template_xpath | regex_replace('\\s+', '') }}"
           register: template_permitted_from_global_raw
           loop: "{{ global_templates_for_queried_stacks | default([]) }}"
           loop_control:
@@ -351,7 +351,7 @@
           paloaltonetworks.panos.panos_type_cmd:
             provider: "{{ device }}"
             cmd: "get"
-            xpath: "{{ stack_xpath | regex_replace('\s+', '') }}"
+            xpath: "{{ stack_xpath | regex_replace('\\s+', '') }}"
           register: template_stack_permitted_from_stack_raw
           loop: "{{ fw_400_by_stack.keys() | list }}"
           loop_control:
