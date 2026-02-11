@@ -37,17 +37,16 @@
           }}
 
     - name: Normalize requested cluster hostnames input
+      vars:
+        cluster_hostnames_raw: "{{ cluster_hostnames | default('') | string }}"
       ansible.builtin.set_fact:
         requested_cluster_hostnames: >-
           {{
             (
-              (cluster_hostnames | default('') | string)
-              | replace('\r\n', '\n')
-              | replace('\r', '\n')
+              cluster_hostnames_raw
               | replace('\\n', '\n')
               | replace(',', '\n')
-              | split('\n')
-            )
+            ).splitlines()
             | map('trim')
             | map('regex_replace', '^"|"$', '')
             | map('regex_replace', "^'|'$", '')
