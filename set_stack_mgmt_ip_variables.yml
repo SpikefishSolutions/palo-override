@@ -17,19 +17,19 @@
     - paloaltonetworks.panos
 
   tasks:
-    - name: Ensure stack issues payload is provided
+    - name: Ensure remediation stack payload is provided
       ansible.builtin.assert:
         that:
-          - template_stack_issues_by_stack is defined
-        fail_msg: "template_stack_issues_by_stack is required."
+          - template_stacks_requiring_override_fix is defined
+        fail_msg: "template_stacks_requiring_override_fix is required."
 
-    - name: Normalize stack issues payload to a mapping
+    - name: Normalize remediation stack payload to a mapping
       ansible.builtin.set_fact:
-        template_stack_issues_payload: >-
+        template_stacks_requiring_override_fix_payload: >-
           {{
-            template_stack_issues_by_stack
-            if template_stack_issues_by_stack is mapping
-            else (template_stack_issues_by_stack | from_yaml)
+            template_stacks_requiring_override_fix
+            if template_stacks_requiring_override_fix is mapping
+            else (template_stacks_requiring_override_fix | from_yaml)
           }}
 
     - name: Build stack and management IP source list
@@ -51,7 +51,7 @@
               )
             } ]
           }}
-      loop: "{{ template_stack_issues_payload | dict2items }}"
+      loop: "{{ template_stacks_requiring_override_fix_payload | dict2items }}"
 
     - name: Build variable entry for management IP A
       ansible.builtin.set_fact:

@@ -9,6 +9,9 @@
       ip_address: "{{ ip_address }}"
       username: "{{ panorama_username }}"
       password: "{{ panorama_password }}"
+    mgmt_variable_names:
+      - '$fw-mgmt-ip-a'
+      - '$fw-mgmt-ip-b'
 
   collections:
     - paloaltonetworks.panos
@@ -451,6 +454,7 @@
                   'stack_permitted_ips': (item.stack_permitted_ips | default([])),
                   'expected_mgmt_ips': (item.expected_mgmt_ips | default([])),
                   'overridden_ips': (item.overridden_ips | default([])),
+                  'override_ips': (item.overridden_ips | default([])),
                   'missing': (item.missing | default([])),
                   'extra_in_override': (item.extra_in_override | default([]))
                 }
@@ -458,29 +462,48 @@
           }}
       loop: "{{ template_stack_override_validation }}"
 
-    - name: Build filtered stack issues map (skip stacks with extra overrides)
+    - name: Build stacks that require override remediation
       ansible.builtin.set_fact:
-        template_stack_issues_filtered: >-
+        template_stacks_requiring_override_fix: >-
           {{
-            (template_stack_issues_filtered | default({}))
+            (template_stacks_requiring_override_fix | default({}))
             | combine({ item.key: item.value })
           }}
       loop: "{{ template_stack_issues_by_stack | default({}) | dict2items }}"
-      when: (item.value.extra_in_override | default([]) | length) == 0
+      when:
+        - ((item.value.override_ips | default([]) | length) > 0)
+          or ((item.value.missing | default([]) | length) > 0)
+          or (((mgmt_variable_names | default([])) | difference(item.value.stack_permitted_ips | default([])) | length) > 0)
 
-    - name: Track stacks skipped due to extra overrides
+    - name: Build device list requiring override remediation
       ansible.builtin.set_fact:
-        template_stack_skipped_due_to_extra_override: >-
+        devices_requiring_override_fix: >-
           {{
-            (template_stack_skipped_due_to_extra_override | default([]))
-            + [ item.key ]
+            (devices_requiring_override_fix | default([]))
+            + [ {
+              'stack': item.key,
+              'member_serials': (
+                template_stacks_with_400
+                | default([])
+                | selectattr('stack', 'equalto', item.key)
+                | map(attribute='member_firewalls')
+                | first
+                | default([])
+              ),
+              'mgmt_ips': (fw_400_by_stack[item.key] | default([]))
+            } ]
           }}
-      loop: "{{ template_stack_issues_by_stack | default({}) | dict2items }}"
-      when: (item.value.extra_in_override | default([]) | length) > 0
+      loop: "{{ template_stacks_requiring_override_fix | default({}) | dict2items }}"
 
-    - name: Replace stack issues map with filtered results
-      ansible.builtin.set_fact:
-        template_stack_issues_by_stack: "{{ template_stack_issues_filtered | default({}) }}"
+    - name: Debug stack issues dict
+      ansible.builtin.debug:
+        var: template_stack_issues_by_stack
+
+    - name: Debug stacks and devices requiring override remediation
+      ansible.builtin.debug:
+        msg:
+          template_stacks_requiring_override_fix: "{{ template_stacks_requiring_override_fix | default({}) }}"
+          devices_requiring_override_fix: "{{ devices_requiring_override_fix | default([]) }}"
 
     - name: Debug skipped items summary
       ansible.builtin.debug:
@@ -489,20 +512,18 @@
           requested_device_hostnames: "{{ requested_device_hostnames | default([]) }}"
           requested_device_hostnames_not_found: "{{ requested_device_hostnames_not_found | default([]) }}"
           skipped_not_400_series: "{{ skipped_not_400_series | default([]) }}"
-          template_stack_skipped_due_to_extra_override: "{{ template_stack_skipped_due_to_extra_override | default([]) }}"
+          template_stacks_requiring_override_fix: "{{ template_stacks_requiring_override_fix | default({}) }}"
+          devices_requiring_override_fix: "{{ devices_requiring_override_fix | default([]) }}"
           fw_400_missing_mgmt_ip: "{{ fw_400_missing_mgmt_ip | default([]) }}"
-
-    - name: Debug stack issues dict
-      ansible.builtin.debug:
-        var: template_stack_issues_by_stack
 
     - name: Publish stack issues for downstream workflow nodes
       ansible.builtin.set_stats:
         data:
           template_stack_issues_by_stack: "{{ template_stack_issues_by_stack | default({}) }}"
+          template_stacks_requiring_override_fix: "{{ template_stacks_requiring_override_fix | default({}) }}"
+          devices_requiring_override_fix: "{{ devices_requiring_override_fix | default([]) }}"
           fw_400_missing_mgmt_ip: "{{ fw_400_missing_mgmt_ip | default([]) }}"
           requested_device_hostnames_not_found: "{{ requested_device_hostnames_not_found | default([]) }}"
           skipped_not_400_series: "{{ skipped_not_400_series | default([]) }}"
-          template_stack_skipped_due_to_extra_override: "{{ template_stack_skipped_due_to_extra_override | default([]) }}"
         per_host: false
         aggregate: false
