@@ -322,32 +322,36 @@
         - item.templates is defined
         - item.templates | length > 0
 
+    - name: Build unique global template list for queried stacks
+      ansible.builtin.set_fact:
+        global_templates_for_queried_stacks: "{{ template_stack_to_global.values() | list | unique }}"
+
     - name: Pull management permitted IPs from template + template stack
       vars:
         template_xpath: >-
-          /config/devices/entry[@name='localhost.localdomain']/template/entry[@name='{{ template_stack_to_global[item] }}']
+          /config/devices/entry[@name='localhost.localdomain']/template/entry[@name='{{ template_name }}']
           /config/devices/entry[@name='localhost.localdomain']/deviceconfig/system/permitted-ip
         stack_xpath: >-
           /config/devices/entry[@name='localhost.localdomain']/template-stack/entry[@name='{{ item }}']
           /config/devices/entry[@name='localhost.localdomain']/deviceconfig/system/permitted-ip
       block:
 
-        - name: Get permitted IPs from GLOBAL TEMPLATE in the stack
+        - name: Get permitted IPs from each GLOBAL TEMPLATE only once
           paloaltonetworks.panos.panos_type_cmd:
             provider: "{{ device }}"
             cmd: "get"
-            xpath: "{{ template_xpath | regex_replace('\\s+', '') }}"
-          register: template_stack_permitted_from_template_raw
-          loop: "{{ fw_400_by_stack.keys() | list }}"
+            xpath: "{{ template_xpath | regex_replace('\s+', '') }}"
+          register: template_permitted_from_global_raw
+          loop: "{{ global_templates_for_queried_stacks | default([]) }}"
           loop_control:
-            loop_var: item
-            label: "stack={{ item }} template={{ template_stack_to_global[item] }}"
+            loop_var: template_name
+            label: "template={{ template_name }}"
 
         - name: Get permitted IPs from TEMPLATE STACK config
           paloaltonetworks.panos.panos_type_cmd:
             provider: "{{ device }}"
             cmd: "get"
-            xpath: "{{ stack_xpath | regex_replace('\\s+', '') }}"
+            xpath: "{{ stack_xpath | regex_replace('\s+', '') }}"
           register: template_stack_permitted_from_stack_raw
           loop: "{{ fw_400_by_stack.keys() | list }}"
           loop_control:
@@ -365,8 +369,8 @@
                   'stack': item,
                   'template': template_stack_to_global[item],
                   'template_permitted_ips': (
-                    (template_stack_permitted_from_template_raw.results
-                      | selectattr('item', 'equalto', item)
+                    (template_permitted_from_global_raw.results
+                      | selectattr('item', 'equalto', template_stack_to_global[item])
                       | map(attribute='stdout_xml')
                       | first
                       | default('')
@@ -506,8 +510,6 @@
           requested_device_hostnames: "{{ requested_device_hostnames | default([]) }}"
           requested_device_hostnames_not_found: "{{ requested_device_hostnames_not_found | default([]) }}"
           skipped_not_400_series: "{{ skipped_not_400_series | default([]) }}"
-          template_stacks_requiring_override_fix: "{{ template_stacks_requiring_override_fix | default({}) }}"
-          devices_requiring_override_fix: "{{ devices_requiring_override_fix | default([]) }}"
           fw_400_missing_mgmt_ip: "{{ fw_400_missing_mgmt_ip | default([]) }}"
 
     - name: Debug stacks and devices requiring override remediation
