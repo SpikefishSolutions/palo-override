@@ -237,7 +237,23 @@
 
     - name: Derive template stacks from template stack membership
       ansible.builtin.set_fact:
-        template_stacks: "{{ template_stacks_with_400 | map(attribute='stack') | unique | list }}"
+        template_stacks: "{{ (template_stacks_with_400 | default([])) | map(attribute='stack') | unique | list }}"
+
+    - name: End play when no template stacks contain selected 400-series devices
+      block:
+        - name: Publish empty results for downstream workflow nodes
+          ansible.builtin.set_stats:
+            data:
+              template_stack_issues_by_stack: {}
+              template_stacks_requiring_override_fix: {}
+              devices_requiring_override_fix: []
+              no_400_template_stacks_found: true
+            per_host: false
+            aggregate: false
+
+        - name: Stop play early (no matching 400-series template stacks)
+          meta: end_play
+      when: (template_stacks | default([]) | length) == 0
 
     - name: Debug discovered 400-series devices
       ansible.builtin.debug:
