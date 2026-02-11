@@ -100,12 +100,21 @@
           }}
       when: (requested_device_hostnames | default([]) | length) > 0
 
-    - name: Debug requested device hostname filter
-      ansible.builtin.debug:
-        msg:
-          requested_cluster_hostnames: "{{ requested_cluster_hostnames | default([]) }}"
-          requested_device_hostnames: "{{ requested_device_hostnames | default([]) }}"
-          requested_device_hostnames_not_found: "{{ requested_device_hostnames_not_found | default([]) }}"
+    - name: Track devices skipped because they are not 400-series
+      ansible.builtin.set_fact:
+        skipped_not_400_series: >-
+          {{
+            (skipped_not_400_series | default([]))
+            + [ {
+              'hostname': item.hostname | default(''),
+              'serial': item.serial | default(''),
+              'model': item.model | default('')
+            } ]
+          }}
+      loop: "{{ panorama_devices_list }}"
+      when:
+        - (requested_device_hostnames | default([]) | length) == 0 or (item.hostname | default('')) in (requested_device_hostnames | default([]))
+        - item.model is not defined or item.model is not string or (not item.model.startswith('PA-4'))
 
     - name: Extract PA-4 devices (serial, mgmt_ip, model, template-stack) from Panorama output
       ansible.builtin.set_fact:
@@ -157,10 +166,6 @@
     - name: Keep only 400-series devices with management IP
       ansible.builtin.set_fact:
         fw_400_devices: "{{ fw_400_devices_with_mgmt_ip | default([]) }}"
-
-    - name: Debug skipped 400-series devices missing management IP
-      ansible.builtin.debug:
-        var: fw_400_missing_mgmt_ip
 
     - name: Build serial -> mgmt IP map for 400-series devices
       ansible.builtin.set_fact:
@@ -477,9 +482,15 @@
       ansible.builtin.set_fact:
         template_stack_issues_by_stack: "{{ template_stack_issues_filtered | default({}) }}"
 
-    - name: Debug stacks skipped due to extra overrides
+    - name: Debug skipped items summary
       ansible.builtin.debug:
-        var: template_stack_skipped_due_to_extra_override
+        msg:
+          requested_cluster_hostnames: "{{ requested_cluster_hostnames | default([]) }}"
+          requested_device_hostnames: "{{ requested_device_hostnames | default([]) }}"
+          requested_device_hostnames_not_found: "{{ requested_device_hostnames_not_found | default([]) }}"
+          skipped_not_400_series: "{{ skipped_not_400_series | default([]) }}"
+          template_stack_skipped_due_to_extra_override: "{{ template_stack_skipped_due_to_extra_override | default([]) }}"
+          fw_400_missing_mgmt_ip: "{{ fw_400_missing_mgmt_ip | default([]) }}"
 
     - name: Debug stack issues dict
       ansible.builtin.debug:
@@ -491,5 +502,7 @@
           template_stack_issues_by_stack: "{{ template_stack_issues_by_stack | default({}) }}"
           fw_400_missing_mgmt_ip: "{{ fw_400_missing_mgmt_ip | default([]) }}"
           requested_device_hostnames_not_found: "{{ requested_device_hostnames_not_found | default([]) }}"
+          skipped_not_400_series: "{{ skipped_not_400_series | default([]) }}"
+          template_stack_skipped_due_to_extra_override: "{{ template_stack_skipped_due_to_extra_override | default([]) }}"
         per_host: false
         aggregate: false
