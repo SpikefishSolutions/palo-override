@@ -1,0 +1,229 @@
+---
+- name: Build concise override remediation report payload
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars:
+    report_output_path: "/runner/artifacts/override_change_report.json"
+
+  tasks:
+    - name: Normalize workflow variables into structured payloads
+      ansible.builtin.set_fact:
+        template_stacks_requiring_override_fix_payload: >-
+          {{
+            template_stacks_requiring_override_fix
+            if (template_stacks_requiring_override_fix is defined and template_stacks_requiring_override_fix is mapping)
+            else ((template_stacks_requiring_override_fix | default('{}')) | from_yaml | default({}, true))
+          }}
+        requested_device_hostnames_not_found_payload: >-
+          {{
+            requested_device_hostnames_not_found
+            if (requested_device_hostnames_not_found is defined and requested_device_hostnames_not_found is sequence and requested_device_hostnames_not_found is not string)
+            else ((requested_device_hostnames_not_found | default('[]')) | from_yaml | default([], true))
+          }}
+        skipped_not_400_series_payload: >-
+          {{
+            skipped_not_400_series
+            if (skipped_not_400_series is defined and skipped_not_400_series is sequence and skipped_not_400_series is not string)
+            else ((skipped_not_400_series | default('[]')) | from_yaml | default([], true))
+          }}
+        fw_400_missing_mgmt_ip_payload: >-
+          {{
+            fw_400_missing_mgmt_ip
+            if (fw_400_missing_mgmt_ip is defined and fw_400_missing_mgmt_ip is sequence and fw_400_missing_mgmt_ip is not string)
+            else ((fw_400_missing_mgmt_ip | default('[]')) | from_yaml | default([], true))
+          }}
+        template_stacks_skipped_due_to_extra_override_payload: >-
+          {{
+            template_stacks_skipped_due_to_extra_override
+            if (template_stacks_skipped_due_to_extra_override is defined and template_stacks_skipped_due_to_extra_override is sequence and template_stacks_skipped_due_to_extra_override is not string)
+            else ((template_stacks_skipped_due_to_extra_override | default('[]')) | from_yaml | default([], true))
+          }}
+        template_stacks_not_requiring_remediation_payload: >-
+          {{
+            template_stacks_not_requiring_remediation
+            if (template_stacks_not_requiring_remediation is defined and template_stacks_not_requiring_remediation is sequence and template_stacks_not_requiring_remediation is not string)
+            else ((template_stacks_not_requiring_remediation | default('[]')) | from_yaml | default([], true))
+          }}
+        template_stacks_missing_templates_payload: >-
+          {{
+            template_stacks_missing_templates
+            if (template_stacks_missing_templates is defined and template_stacks_missing_templates is sequence and template_stacks_missing_templates is not string)
+            else ((template_stacks_missing_templates | default('[]')) | from_yaml | default([], true))
+          }}
+        stack_override_delete_result_payload: >-
+          {{
+            stack_override_delete_result
+            if (stack_override_delete_result is defined and stack_override_delete_result is sequence and stack_override_delete_result is not string)
+            else ((stack_override_delete_result | default('[]')) | from_yaml | default([], true))
+          }}
+        stack_variable_entries_payload: >-
+          {{
+            stack_variable_entries
+            if (stack_variable_entries is defined and stack_variable_entries is sequence and stack_variable_entries is not string)
+            else ((stack_variable_entries | default('[]')) | from_yaml | default([], true))
+          }}
+        stack_variable_set_result_payload: >-
+          {{
+            stack_variable_set_result
+            if (stack_variable_set_result is defined and stack_variable_set_result is sequence and stack_variable_set_result is not string)
+            else ((stack_variable_set_result | default('[]')) | from_yaml | default([], true))
+          }}
+
+    - name: Build core remediation lists
+      ansible.builtin.set_fact:
+        stacks_requiring_remediation: "{{ template_stacks_requiring_override_fix_payload.keys() | list | sort }}"
+        stacks_override_deleted: >-
+          {{
+            stack_override_delete_result_payload
+            | selectattr('item', 'defined')
+            | map(attribute='item')
+            | map('string')
+            | unique
+            | sort
+            | list
+          }}
+        stacks_with_variables_set: >-
+          {{
+            (
+              (stack_variable_set_result_payload
+                | selectattr('item', 'defined')
+                | map(attribute='item')
+                | select('mapping')
+                | map(attribute='stack')
+                | select('defined')
+                | list)
+              +
+              (stack_variable_entries_payload
+                | selectattr('stack', 'defined')
+                | map(attribute='stack')
+                | list)
+            )
+            | unique
+            | sort
+            | list
+          }}
+
+    - name: Add skipped requested hostnames not found
+      ansible.builtin.set_fact:
+        skipped_with_reason: >-
+          {{
+            (skipped_with_reason | default([]))
+            + [ {
+              'type': 'device',
+              'name': item,
+              'reason': 'requested hostname not found in Panorama managed devices'
+            } ]
+          }}
+      loop: "{{ requested_device_hostnames_not_found_payload | default([]) }}"
+
+    - name: Add skipped devices not in 400-series
+      ansible.builtin.set_fact:
+        skipped_with_reason: >-
+          {{
+            (skipped_with_reason | default([]))
+            + [ {
+              'type': 'device',
+              'name': (item.hostname | default(item.serial | default('unknown'))),
+              'reason': 'device model is not PA-400 series'
+            } ]
+          }}
+      loop: "{{ skipped_not_400_series_payload | default([]) }}"
+
+    - name: Add skipped 400-series devices missing management IP
+      ansible.builtin.set_fact:
+        skipped_with_reason: >-
+          {{
+            (skipped_with_reason | default([]))
+            + [ {
+              'type': 'device',
+              'name': (item.hostname | default(item.serial | default('unknown'))),
+              'reason': '400-series device missing management IP'
+            } ]
+          }}
+      loop: "{{ fw_400_missing_mgmt_ip_payload | default([]) }}"
+
+    - name: Add skipped stacks due to extra override entries
+      ansible.builtin.set_fact:
+        skipped_with_reason: >-
+          {{
+            (skipped_with_reason | default([]))
+            + [ {
+              'type': 'stack',
+              'name': item,
+              'reason': 'extra_in_override has values'
+            } ]
+          }}
+      loop: "{{ template_stacks_skipped_due_to_extra_override_payload | default([]) }}"
+
+    - name: Add stacks not requiring remediation
+      ansible.builtin.set_fact:
+        skipped_with_reason: >-
+          {{
+            (skipped_with_reason | default([]))
+            + [ {
+              'type': 'stack',
+              'name': item,
+              'reason': 'stack_permitted_ips empty and template_permitted_ips fully represented in missing'
+            } ]
+          }}
+      loop: "{{ template_stacks_not_requiring_remediation_payload | default([]) }}"
+
+    - name: Add stacks skipped due to missing templates
+      ansible.builtin.set_fact:
+        skipped_with_reason: >-
+          {{
+            (skipped_with_reason | default([]))
+            + [ {
+              'type': 'stack',
+              'name': item,
+              'reason': 'template stack has no templates/global template mapping'
+            } ]
+          }}
+      loop: "{{ template_stacks_missing_templates_payload | default([]) }}"
+
+    - name: Build concise consolidated report
+      ansible.builtin.set_fact:
+        override_change_report: >-
+          {{
+            {
+              'generated_at_utc': lookup('pipe', 'date -u +%Y-%m-%dT%H:%M:%SZ'),
+              'stacks_requiring_remediation': stacks_requiring_remediation | default([]),
+              'stacks_override_deleted': stacks_override_deleted | default([]),
+              'stacks_with_variables_set': stacks_with_variables_set | default([]),
+              'skipped': (skipped_with_reason | default([]))
+            }
+          }}
+
+    - name: Build JSON string report variable
+      ansible.builtin.set_fact:
+        override_change_report_json: "{{ override_change_report | to_nice_json }}"
+
+    - name: Ensure report artifact directory exists
+      ansible.builtin.file:
+        path: "{{ report_output_path | dirname }}"
+        state: directory
+        mode: "0755"
+
+    - name: Write JSON report artifact
+      ansible.builtin.copy:
+        dest: "{{ report_output_path }}"
+        content: "{{ override_change_report_json }}"
+        mode: "0644"
+
+    - name: Debug concise JSON report payload
+      ansible.builtin.debug:
+        msg: |
+          =====BEGIN_OVERRIDE_CHANGE_REPORT_JSON=====
+          {{ override_change_report_json }}
+          =====END_OVERRIDE_CHANGE_REPORT_JSON=====
+
+    - name: Publish report variables for downstream workflow nodes
+      ansible.builtin.set_stats:
+        data:
+          override_change_report: "{{ override_change_report }}"
+          override_change_report_json: "{{ override_change_report_json }}"
+          override_change_report_path: "{{ report_output_path }}"
+        per_host: false
+        aggregate: false
