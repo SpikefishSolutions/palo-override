@@ -117,7 +117,7 @@
       loop: "{{ panorama_devices_list }}"
       when:
         - (requested_device_hostnames | default([]) | length) == 0 or (item.hostname | default('')) in (requested_device_hostnames | default([]))
-        - item.model is not defined or item.model is not string or (not item.model.startswith('PA-'))
+        - item.model is not defined or item.model is not string or (not item.model.startswith('PA-4'))
 
     - name: Extract PA-4 devices (serial, mgmt_ip, model, template-stack) from Panorama output
       ansible.builtin.set_fact:
@@ -135,7 +135,7 @@
       when:
         - item.model is defined
         - item.model is string
-        - item.model.startswith('PA-')
+        - item.model.startswith('PA-4')
         - (requested_device_hostnames | default([]) | length) == 0 or (item.hostname | default('')) in (requested_device_hostnames | default([]))
 
     - name: Debug discovered 400-series devices
